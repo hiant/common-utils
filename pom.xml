@@ -4,7 +4,7 @@
 
     <groupId>io.github.hiant</groupId>
     <artifactId>common-utils</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>${project.artifactId}</name>
     <packaging>jar</packaging>
     <description>Offers a library of java utilities</description>
@@ -118,6 +118,8 @@
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>
+                    <autoPublish>true</autoPublish>
+                    <waitUntil>published</waitUntil>
                 </configuration>
             </plugin>
         </plugins>
