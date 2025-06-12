@@ -6,6 +6,7 @@ import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -105,9 +106,8 @@ public class SpelUtils {
      *
      * @param evaluationContext the context to set variables into
      * @param methods           map of variable names to methods to register
-     * @return the same evaluation context with variables added
      */
-    private static EvaluationContext setVariables(EvaluationContext evaluationContext, Map<String, Method> methods) {
+    private static void setVariables(EvaluationContext evaluationContext, Map<String, Method> methods) {
         if (methods != null) {
             for (Map.Entry<String, Method> entry : methods.entrySet()) {
                 String name = entry.getKey();
@@ -115,7 +115,6 @@ public class SpelUtils {
                 evaluationContext.setVariable(name, method);
             }
         }
-        return evaluationContext;
     }
 
     /**
@@ -182,6 +181,27 @@ public class SpelUtils {
         }
     }
 
+
+    /**
+     * Evaluates the given SpEL expression and returns the result as a int value.
+     *
+     * @param context    the evaluation context
+     * @param expression the SpEL expression to evaluate
+     * @return the result of the expression evaluation as an int
+     * @throws IllegalStateException if an error occurs during evaluation or the result is null
+     */
+    public static int getInt(EvaluationContext context, String expression) {
+        try {
+            Integer result = PARSER.parseExpression(expression).getValue(context, Integer.class);
+            if (result == null) {
+                throw new IllegalStateException("failed to get Integer from expression: " + expression);
+            }
+            return result;
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to get Integer from expression: " + expression, e);
+        }
+    }
+
     /**
      * Evaluates the given SpEL expression and returns the result as a long value.
      *
@@ -203,6 +223,26 @@ public class SpelUtils {
     }
 
     /**
+     * Evaluates the given SpEL expression and returns the result as a float value.
+     *
+     * @param context    the evaluation context
+     * @param expression the SpEL expression to evaluate
+     * @return the result of the expression evaluation as a float
+     * @throws IllegalStateException if an error occurs during evaluation or the result is null
+     */
+    public static double getFloat(EvaluationContext context, String expression) {
+        try {
+            Float result = PARSER.parseExpression(expression).getValue(context, Float.class);
+            if (result == null) {
+                throw new IllegalStateException("failed to get Float from expression: " + expression);
+            }
+            return result;
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to get Float from expression: " + expression, e);
+        }
+    }
+
+    /**
      * Evaluates the given SpEL expression and returns the result as a double value.
      *
      * @param context    the evaluation context
@@ -219,6 +259,26 @@ public class SpelUtils {
             return result;
         } catch (Exception e) {
             throw new IllegalStateException("failed to get Double from expression: " + expression, e);
+        }
+    }
+
+    /**
+     * Evaluates the given SpEL expression and returns the result as a double value.
+     *
+     * @param context    the evaluation context
+     * @param expression the SpEL expression to evaluate
+     * @return the result of the expression evaluation as a long
+     * @throws IllegalStateException if an error occurs during evaluation or the result is null
+     */
+    public static List<?> getList(EvaluationContext context, String expression) {
+        try {
+            List<?> result = PARSER.parseExpression(expression).getValue(context, List.class);
+            if (result == null) {
+                throw new IllegalStateException("failed to get List from expression: " + expression);
+            }
+            return result;
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to get List from expression: " + expression, e);
         }
     }
 }
