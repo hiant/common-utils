@@ -1,6 +1,9 @@
 package io.github.hiant.common.utils;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
@@ -29,6 +32,21 @@ public class IpUtils {
     }
 
     /**
+     * Retrieves the remote address of the client.
+     * <p>
+     * This method is used to determine the actual IP address of the client that initiated the request,
+     * especially in cases where the request passes through multiple proxies. It can obtain the real
+     * client IP address even behind multiple proxy layers.
+     *
+     * @return The remote address of the client, or an empty string if it cannot be obtained.
+     */
+    public static String getRemoteAddr() {
+        RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
+        return getRemoteAddr(request);
+    }
+
+    /**
      * Retrieves the client's remote IP address from the HTTP request.
      * <p>
      * Tries multiple headers like X-Forwarded-For, Proxy-Client-IP, etc.,
@@ -39,6 +57,9 @@ public class IpUtils {
      * @return The simplified IP address string, or null if not found.
      */
     public static String getRemoteAddr(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
         String ip = null;
         try {
             ip = request.getHeader("x-forwarded-for");
@@ -66,6 +87,16 @@ public class IpUtils {
     /**
      * Gets the hostname of the local machine.
      *
+     * @return The hostname of the local machine.
+     * @throws IllegalStateException if the hostname cannot be determined and no default is provided.
+     */
+    public static String hostname() {
+        return hostname(null);
+    }
+
+    /**
+     * Gets the hostname of the local machine.
+     *
      * @param defaultHostName A default hostname to use in case of failure.
      * @return The hostname of the local machine.
      * @throws IllegalStateException if the hostname cannot be determined and no default is provided.
@@ -88,8 +119,8 @@ public class IpUtils {
      *
      * @return An IPv4 address string.
      */
-    public static String ipv4() {
-        List<String> allIp = allIp();
+    public static String localIPv4() {
+        List<String> allIp = localIp();
         return allIp.isEmpty() ? "127.0.0.1" : allIp.get(0);
     }
 
@@ -98,7 +129,7 @@ public class IpUtils {
      *
      * @return A list of IP address strings.
      */
-    public static List<String> allIp() {
+    public static List<String> localIp() {
         List<String> list = new LinkedList<>();
         try {
             Enumeration<NetworkInterface> enumeration = NetworkInterface.getNetworkInterfaces();
