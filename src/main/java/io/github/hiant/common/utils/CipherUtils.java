@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.security.spec.AlgorithmParameterSpec;
 import java.util.Base64;
+import java.util.function.Consumer;
 
 /**
  * Utility class for symmetric and asymmetric encryption/decryption operations.
@@ -103,6 +104,20 @@ public class CipherUtils {
      * @return Base64-encoded encrypted string, or null if encryption fails.
      */
     public static String encrypt(String content, String cipherMode, Key key, AlgorithmParameterSpec params) {
+        return encrypt(content, cipherMode, key, params, e -> log.error("Encryption failed: ", e));
+    }
+
+    /**
+     * Generic encryption method supporting various cipher algorithms.
+     *
+     * @param content    The plaintext content to encrypt.
+     * @param cipherMode The cipher transformation (e.g., AES/CBC/PKCS5Padding).
+     * @param key        The cryptographic key.
+     * @param params     Optional algorithm parameters (e.g., IV for AES).
+     * @param consumer   Consumer to handle exceptions during encryption.
+     * @return Base64-encoded encrypted string, or null if encryption fails.
+     */
+    public static String encrypt(String content, String cipherMode, Key key, AlgorithmParameterSpec params, Consumer<Throwable> consumer) {
         try {
             Cipher cipher = Cipher.getInstance(cipherMode);
             if (params == null) {
@@ -114,7 +129,9 @@ public class CipherUtils {
             byte[] encryptBytes = cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
             return new String(Base64.getEncoder().encode(encryptBytes), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.info("", e);
+            if (consumer != null) {
+                consumer.accept(e);
+            }
         }
         return null;
     }
@@ -129,6 +146,21 @@ public class CipherUtils {
      * @return Decrypted plaintext string, or null if decryption fails.
      */
     public static String decrypt(String content, String cipherMode, Key key, AlgorithmParameterSpec params) {
+        return decrypt(content, cipherMode, key, params, e -> log.error("Decryption failed: ", e));
+    }
+
+
+    /**
+     * Generic decryption method supporting various cipher algorithms.
+     *
+     * @param content    The Base64-encoded encrypted string.
+     * @param cipherMode The cipher transformation (e.g., AES/CBC/PKCS5Padding).
+     * @param key        The cryptographic key.
+     * @param params     Optional algorithm parameters (e.g., IV for AES).
+     * @param consumer   Consumer to handle exceptions during decryption.
+     * @return Decrypted plaintext string, or null if decryption fails.
+     */
+    public static String decrypt(String content, String cipherMode, Key key, AlgorithmParameterSpec params, Consumer<Throwable> consumer) {
         try {
             Cipher cipher = Cipher.getInstance(cipherMode);
             if (params == null) {
@@ -140,7 +172,9 @@ public class CipherUtils {
             byte[] data = cipher.doFinal(Base64.getDecoder().decode(content));
             return new String(data, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            log.info("", e);
+            if (consumer != null) {
+                consumer.accept(e);
+            }
         }
         return null;
     }
@@ -160,13 +194,15 @@ public class CipherUtils {
         if (str == null) {
             str = "";
         }
-        StringBuilder sb = new StringBuilder(16);
+
+        int maxLen = 16;
+        StringBuilder sb = new StringBuilder(maxLen);
         sb.append(str);
-        while (sb.length() < 16) {
+        while (sb.length() < maxLen) {
             sb.append("0");
         }
-        if (sb.length() > 16) {
-            sb.setLength(16);
+        if (sb.length() > maxLen) {
+            sb.setLength(maxLen);
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
