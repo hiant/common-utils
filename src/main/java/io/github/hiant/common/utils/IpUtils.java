@@ -6,13 +6,11 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.http.HttpServletRequest;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.util.Enumeration;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Utility class for handling IP addresses and network-related operations.
@@ -24,6 +22,16 @@ import java.util.List;
 @Slf4j
 public class IpUtils {
     private static final String UNKNOWN = "unknown";
+
+    // Regular expression pattern for validating IPv4 addresses
+    private static final Pattern IPV4_PATTERN = Pattern.compile(
+            "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
+
+    // Regular expression patterns for validating IPv6 addresses
+    private static final Pattern IPV6_STD_PATTERN = Pattern.compile(
+            "^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$");
+    private static final Pattern IPV6_HEX_COMPRESSED_PATTERN = Pattern.compile(
+            "^((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)::((?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?)$");
 
     /**
      * Private constructor to prevent instantiation of utility class.
@@ -94,12 +102,16 @@ public class IpUtils {
         return hostname(null);
     }
 
+
     /**
      * Gets the hostname of the local machine.
      *
-     * @param defaultHostName A default hostname to use in case of failure.
-     * @return The hostname of the local machine.
-     * @throws IllegalStateException if the hostname cannot be determined and no default is provided.
+     * <p>If the hostname cannot be determined due to a {@link UnknownHostException},
+     * it falls back to the provided {@code defaultHostName}, or to {@code "localhost"}
+     * if no default is given. A warning log is generated when fallback occurs.
+     *
+     * @param defaultHostName A default hostname to use in case of failure, can be null.
+     * @return The hostname of the local machine, or the default/fallback value.
      */
     public static String hostname(String defaultHostName) {
         try {
@@ -109,9 +121,11 @@ public class IpUtils {
             if (defaultHostName != null) {
                 return defaultHostName;
             }
-            throw new IllegalStateException(e);
+            log.warn("Failed to get hostname, falling back to 'localhost'", e);
+            return "localhost";
         }
     }
+
 
     /**
      * Returns the first valid IPv4 address of the local machine.
@@ -237,5 +251,103 @@ public class IpUtils {
         }
 
         return fullySimplified.toString();
+    }
+
+    /**
+     * Checks whether the given string represents a valid IPv4 address.
+     * <p>
+     * This method first validates the format using a regular expression. If the format is invalid,
+     * it attempts to resolve the hostname via DNS and checks if any of the returned addresses are IPv4.
+     *
+     * @param input The string to check.
+     * @return true if the input is a valid IPv4 address, false otherwise.
+     */
+    public static boolean isIPv4(String input) {
+        if (isValidIPv4Format(input)) {
+            return true;
+        }
+
+        try {
+            InetAddress[] addresses = InetAddress.getAllByName(input);
+            for (InetAddress address : addresses) {
+                if (address instanceof Inet4Address) {
+                    return true;
+                }
+            }
+        } catch (UnknownHostException ignored) {
+        }
+
+        return false;
+    }
+
+    /**
+     * Checks whether the given string represents a valid IPv6 address.
+     * <p>
+     * This method first validates the format using regular expressions for standard and compressed IPv6 formats.
+     * If the format is not recognized, it tries to resolve the input as a hostname and checks if any of the returned addresses are IPv6.
+     *
+     * @param input The string to check.
+     * @return true if the input is a valid IPv6 address, false otherwise.
+     */
+    public static boolean isIPv6(String input) {
+        if (isValidIPv6Format(input)) {
+            return true;
+        }
+
+        try {
+            InetAddress[] addresses = InetAddress.getAllByName(input);
+            for (InetAddress address : addresses) {
+                if (address instanceof Inet6Address) {
+                    return true;
+                }
+            }
+        } catch (UnknownHostException ignored) {
+        }
+
+        return false;
+    }
+
+    /**
+     * Validates the input string against the IPv4 address pattern.
+     * <p>
+     * This method only performs format validation and does not attempt DNS resolution.
+     *
+     * @param input The string to validate.
+     * @return true if the input matches the IPv4 address pattern, false otherwise.
+     */
+    private static boolean isValidIPv4Format(String input) {
+        return IPV4_PATTERN.matcher(input).matches();
+    }
+
+    /**
+     * Validates the input string against known IPv6 address patterns.
+     * <p>
+     * Supports standard full notation, compressed notation, and IPv4-mapped IPv6 addresses.
+     * This method does not perform DNS resolution.
+     *
+     * @param input The string to validate.
+     * @return true if the input matches one of the IPv6 address patterns, false otherwise.
+     */
+    private static boolean isValidIPv6Format(String input) {
+        if (IPV6_STD_PATTERN.matcher(input).matches()) {
+            return true;
+        }
+
+        if (IPV6_HEX_COMPRESSED_PATTERN.matcher(input).matches()) {
+            int colonCount = 0;
+            for (char c : input.toCharArray()) {
+                if (c == ':') {
+                    colonCount++;
+                }
+            }
+            return colonCount <= 7;
+        }
+
+        if (input.startsWith("::ffff:") || input.startsWith("0:0:0:0:0:ffff:")) {
+            String ipv4Part = input.substring(input.lastIndexOf(':') + 1);
+            return isValidIPv4Format(ipv4Part);
+        }
+
+        return false;
     }
 }
