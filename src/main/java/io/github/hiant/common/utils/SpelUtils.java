@@ -6,8 +6,11 @@ import org.springframework.expression.spel.support.SimpleEvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Utility class for working with Spring Expression Language (SpEL).
@@ -19,6 +22,11 @@ import java.util.Map;
  * @author liudong.work@gmail.com Created at: 2025/6/10 16:19
  */
 public class SpelUtils {
+
+    /**
+     * Cache for static methods from utility classes.
+     */
+    private static final Map<Class<?>, Map<String, Method>> STATIC_METHOD_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Shared instance of SpEL expression parser.
@@ -37,7 +45,7 @@ public class SpelUtils {
      * @return a new StandardEvaluationContext instance
      */
     public static EvaluationContext createStandardEvaluationContext() {
-        return createStandardEvaluationContext(null, null);
+        return createStandardEvaluationContext(null, (Map<String, Method>) null);
     }
 
     /**
@@ -47,7 +55,7 @@ public class SpelUtils {
      * @return a new StandardEvaluationContext instance
      */
     public static EvaluationContext createStandardEvaluationContext(Object rootObject) {
-        return createStandardEvaluationContext(rootObject, null);
+        return createStandardEvaluationContext(rootObject, (Map<String, Method>) null);
     }
 
     /**
@@ -58,9 +66,28 @@ public class SpelUtils {
      * @return a new StandardEvaluationContext instance
      */
     public static EvaluationContext createStandardEvaluationContext(Object rootObject, Map<String, Method> methods) {
-        StandardEvaluationContext evaluationContext = new StandardEvaluationContext(rootObject);
-        setVariables(evaluationContext, methods);
-        return evaluationContext;
+        StandardEvaluationContext context = new StandardEvaluationContext(rootObject);
+        setVariables(context, methods);
+        return context;
+    }
+
+    /**
+     * Creates a standard evaluation context with the specified root object and method variables.
+     *
+     * @param rootObject the root object for the evaluation context
+     * @param clazz      one or more utility classes whose static methods should be registered
+     * @return a new StandardEvaluationContext instance
+     */
+    public static EvaluationContext createStandardEvaluationContext(Object rootObject, Class<?>... clazz) {
+        StandardEvaluationContext context = new StandardEvaluationContext(rootObject);
+
+        // Register static methods from utility classes
+        if (clazz != null) {
+            for (Class<?> toolClass : clazz) {
+                registerStaticMethods(context, toolClass);
+            }
+        }
+        return context;
     }
 
     /**
@@ -69,7 +96,7 @@ public class SpelUtils {
      * @return a new SimpleEvaluationContext instance configured for read-only use
      */
     public static EvaluationContext createReadonlyEvaluationContext() {
-        return createReadonlyEvaluationContext(null, null);
+        return createReadonlyEvaluationContext(null, (Map<String, Method>) null);
     }
 
     /**
@@ -79,7 +106,7 @@ public class SpelUtils {
      * @return a new SimpleEvaluationContext instance configured for read-only use
      */
     public static EvaluationContext createReadonlyEvaluationContext(Object rootObject) {
-        return createReadonlyEvaluationContext(rootObject, null);
+        return createReadonlyEvaluationContext(rootObject, (Map<String, Method>) null);
     }
 
     /**
@@ -96,23 +123,70 @@ public class SpelUtils {
             builder.withRootObject(rootObject);
         }
 
-        SimpleEvaluationContext evaluationContext = builder.build();
-        setVariables(evaluationContext, methods);
-        return evaluationContext;
+        SimpleEvaluationContext context = builder.build();
+        setVariables(context, methods);
+        return context;
     }
 
     /**
-     * Sets variables into the given evaluation context.
+     * Creates a read-only evaluation context with the given root object and static utility classes.
+     * All public static methods from the provided classes will be registered as variables.
      *
-     * @param evaluationContext the context to set variables into
-     * @param methods           map of variable names to methods to register
+     * @param rootObject the root object to bind to (can be null)
+     * @param clazz      one or more utility classes whose static methods should be registered
+     * @return a configured read-only SimpleEvaluationContext
      */
-    private static void setVariables(EvaluationContext evaluationContext, Map<String, Method> methods) {
+    public static EvaluationContext createReadonlyEvaluationContext(Object rootObject, Class<?>... clazz) {
+        SimpleEvaluationContext.Builder builder = SimpleEvaluationContext.forReadOnlyDataBinding().withInstanceMethods();
+
+        if (rootObject != null) {
+            builder.withRootObject(rootObject);
+        }
+
+        SimpleEvaluationContext context = builder.build();
+
+        // Register static methods from utility classes
+        if (clazz != null) {
+            for (Class<?> toolClass : clazz) {
+                registerStaticMethods(context, toolClass);
+            }
+        }
+
+        return context;
+    }
+
+    /**
+     * Registers all public static methods of a given class as variables in the evaluation context.
+     * Method names will be used as variable names.
+     *
+     * @param context   the evaluation context to configure
+     * @param toolClass the class containing static utility methods
+     */
+    private static void registerStaticMethods(EvaluationContext context, Class<?> toolClass) {
+        // Retrieve from cache or scan and cache if first time
+        Map<String, Method> staticMethods = STATIC_METHOD_CACHE.computeIfAbsent(toolClass, cls -> {
+            Map<String, Method> methods = new HashMap<>();
+            for (Method method : cls.getMethods()) {
+                if (Modifier.isStatic(method.getModifiers())) {
+                    methods.put(method.getName(), method);
+                }
+            }
+            return methods;
+        });
+
+        setVariables(context, staticMethods);
+    }
+
+    /**
+     * Sets the provided methods as variables in the evaluation context.
+     *
+     * @param context the evaluation context
+     * @param methods map of variable names to Method instances
+     */
+    private static void setVariables(EvaluationContext context, Map<String, Method> methods) {
         if (methods != null) {
             for (Map.Entry<String, Method> entry : methods.entrySet()) {
-                String name = entry.getKey();
-                Method method = entry.getValue();
-                evaluationContext.setVariable(name, method);
+                context.setVariable(entry.getKey(), entry.getValue());
             }
         }
     }
@@ -181,9 +255,8 @@ public class SpelUtils {
         }
     }
 
-
     /**
-     * Evaluates the given SpEL expression and returns the result as a int value.
+     * Evaluates the given SpEL expression and returns the result as an int value.
      *
      * @param context    the evaluation context
      * @param expression the SpEL expression to evaluate
@@ -263,11 +336,11 @@ public class SpelUtils {
     }
 
     /**
-     * Evaluates the given SpEL expression and returns the result as a double value.
+     * Evaluates the given SpEL expression and returns the result as a List.
      *
      * @param context    the evaluation context
      * @param expression the SpEL expression to evaluate
-     * @return the result of the expression evaluation as a long
+     * @return the result of the expression evaluation as a List
      * @throws IllegalStateException if an error occurs during evaluation or the result is null
      */
     public static List<?> getList(EvaluationContext context, String expression) {
