@@ -1,0 +1,53 @@
+name: Release on Version Change
+
+on:
+  push:
+    branches:
+      - main  # Adjust to your main branch
+
+jobs:
+  check-version-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Get last two commits for diff comparison
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Compare versions
+        id: version_check
+        run: |
+          # Get current and previous pom.xml versions
+          CURRENT_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          PREVIOUS_VERSION=$(git show HEAD~1:pom.xml | xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" - 2>/dev/null || echo "")
+          
+          echo "Current version: $CURRENT_VERSION"
+          echo "Previous version: $PREVIOUS_VERSION"
+          
+          # Check if version changed
+          if [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+            echo "VERSION_CHANGED=true" >> $GITHUB_ENV
+            echo "NEW_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          else
+            echo "VERSION_CHANGED=false" >> $GITHUB_ENV
+          fi
+
+      - name: Create Release
+        if: env.VERSION_CHANGED == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ env.NEW_VERSION }}
+          release_name: Release ${{ env.NEW_VERSION }}
+          body: |
+            Automated release: Version ${{ env.NEW_VERSION }}
+            Changes: View [commit history](https://github.com/${{ github.repository }}/commits/main)
+          draft: false
+          prerelease: false
