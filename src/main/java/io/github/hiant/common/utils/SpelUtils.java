@@ -74,6 +74,16 @@ public class SpelUtils {
     /**
      * Creates a standard evaluation context with the specified root object and method variables.
      *
+     * @param clazz one or more utility classes whose static methods should be registered
+     * @return a new StandardEvaluationContext instance
+     */
+    public static EvaluationContext createStandardEvaluationContext(Class<?>... clazz) {
+        return createStandardEvaluationContext(null, clazz);
+    }
+
+    /**
+     * Creates a standard evaluation context with the specified root object and method variables.
+     *
      * @param rootObject the root object for the evaluation context
      * @param clazz      one or more utility classes whose static methods should be registered
      * @return a new StandardEvaluationContext instance
@@ -126,6 +136,17 @@ public class SpelUtils {
         SimpleEvaluationContext context = builder.build();
         setVariables(context, methods);
         return context;
+    }
+
+    /**
+     * Creates a read-only evaluation context with the given root object and static utility classes.
+     * All public static methods from the provided classes will be registered as variables.
+     *
+     * @param clazz one or more utility classes whose static methods should be registered
+     * @return a configured read-only SimpleEvaluationContext
+     */
+    public static EvaluationContext createReadonlyEvaluationContext(Class<?>... clazz) {
+        return createReadonlyEvaluationContext(null, clazz);
     }
 
     /**
