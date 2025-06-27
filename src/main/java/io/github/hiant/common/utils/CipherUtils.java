@@ -51,8 +51,8 @@ public class CipherUtils {
      * @return Base64-encoded encrypted string, or null if encryption fails.
      */
     public static String encryptWithAES(String content, String secretKey, String iv) {
-        SecretKeySpec key = new SecretKeySpec(getHexString(secretKey), AES_ALGORITHM);
-        IvParameterSpec params = new IvParameterSpec(getHexString(iv));
+        SecretKeySpec key = new SecretKeySpec(padTo16Bytes(secretKey), AES_ALGORITHM);
+        IvParameterSpec params = new IvParameterSpec(padTo16Bytes(iv));
 
         return encrypt(content, AES_CBC_PKCS5PADDING, key, params);
     }
@@ -66,8 +66,8 @@ public class CipherUtils {
      * @return Decrypted plaintext string, or null if decryption fails.
      */
     public static String decryptWithAES(String content, String secretKey, String iv) {
-        SecretKeySpec key = new SecretKeySpec(getHexString(secretKey), AES_ALGORITHM);
-        IvParameterSpec params = new IvParameterSpec(getHexString(iv));
+        SecretKeySpec key = new SecretKeySpec(padTo16Bytes(secretKey), AES_ALGORITHM);
+        IvParameterSpec params = new IvParameterSpec(padTo16Bytes(iv));
 
         return decrypt(content, AES_CBC_PKCS5PADDING, key, params);
     }
@@ -190,7 +190,7 @@ public class CipherUtils {
      * @param str The input string.
      * @return A 16-byte array representation of the string.
      */
-    private static byte[] getHexString(String str) {
+    private static byte[] padTo16Bytes(String str) {
         if (str == null) {
             str = "";
         }
