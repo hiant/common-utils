@@ -4,7 +4,7 @@
 
     <groupId>io.github.hiant</groupId>
     <artifactId>common-utils</artifactId>
-    <version>1.0.11</version>
+    <version>1.0.12</version>
     <name>${project.artifactId}</name>
     <packaging>jar</packaging>
     <description>Offers a library of java utilities</description>
@@ -70,7 +70,7 @@
 
         <dependency>
             <groupId>com.baomidou</groupId>
-            <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+            <artifactId>dynamic-datasource-spring</artifactId>
             <version>4.2.0</version>
             <optional>true</optional>
         </dependency>
