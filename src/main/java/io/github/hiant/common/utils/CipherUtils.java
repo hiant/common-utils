@@ -1,4 +1,3 @@
-
 package io.github.hiant.common.utils;
 
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +14,7 @@ import java.util.function.Consumer;
 /**
  * Utility class for symmetric and asymmetric encryption/decryption operations.
  * <p>
- * Provides methods for AES (symmetric) and RSA (asymmetric) encryption and decryption.
+ * Provides methods for AES (symmetric), DES (symmetric), and RSA (asymmetric) encryption and decryption.
  * </p>
  */
 @Slf4j
@@ -33,9 +32,19 @@ public class CipherUtils {
     private static final String AES_CBC_PKCS5PADDING = "AES/CBC/PKCS5Padding";
 
     /**
+     * DES encryption mode with CBC and PKCS5 padding.
+     */
+    private static final String DES_CBC_PKCS5PADDING = "DES/CBC/PKCS5Padding";
+
+    /**
      * AES algorithm name.
      */
     private static final String AES_ALGORITHM = "AES";
+
+    /**
+     * DES algorithm name.
+     */
+    private static final String DES_ALGORITHM = "DES";
 
     /**
      * RSA algorithm name.
@@ -70,6 +79,36 @@ public class CipherUtils {
         IvParameterSpec params = new IvParameterSpec(padTo16Bytes(iv));
 
         return decrypt(content, AES_CBC_PKCS5PADDING, key, params);
+    }
+
+    /**
+     * Encrypts the given content using DES algorithm with CBC mode and PKCS5 padding.
+     *
+     * @param content   The plaintext content to encrypt.
+     * @param secretKey The secret key (will be padded/truncated to 16 bytes).
+     * @param iv        The initialization vector (IV), must be 16 bytes.
+     * @return Base64-encoded encrypted string, or null if encryption fails.
+     */
+    public static String encryptWithDES(String content, String secretKey, String iv) {
+        SecretKeySpec key = new SecretKeySpec(padTo16Bytes(secretKey), DES_ALGORITHM);
+        IvParameterSpec params = new IvParameterSpec(padTo16Bytes(iv));
+
+        return encrypt(content, DES_CBC_PKCS5PADDING, key, params);
+    }
+
+    /**
+     * Decrypts the given content using DES algorithm with CBC mode and PKCS5 padding.
+     *
+     * @param content   The Base64-encoded encrypted string.
+     * @param secretKey The secret key (must match the one used for encryption).
+     * @param iv        The initialization vector (IV) used during encryption.
+     * @return Decrypted plaintext string, or null if decryption fails.
+     */
+    public static String decryptWithDES(String content, String secretKey, String iv) {
+        SecretKeySpec key = new SecretKeySpec(padTo16Bytes(secretKey), DES_ALGORITHM);
+        IvParameterSpec params = new IvParameterSpec(padTo16Bytes(iv));
+
+        return decrypt(content, DES_CBC_PKCS5PADDING, key, params);
     }
 
     /**
@@ -148,7 +187,6 @@ public class CipherUtils {
     public static String decrypt(String content, String cipherMode, Key key, AlgorithmParameterSpec params) {
         return decrypt(content, cipherMode, key, params, e -> log.error("Decryption failed: ", e));
     }
-
 
     /**
      * Generic decryption method supporting various cipher algorithms.
