@@ -295,6 +295,23 @@ public class ThreadUtils {
         return new ScheduledThreadPoolExecutor(corePoolSize, factory, handler);
     }
 
+    /**
+     * Creates a new single-threaded executor.
+     *
+     * @param threadNamePrefix prefix for thread names
+     * @param daemon           whether the thread should be a daemon thread
+     * @return a new single-threaded executor
+     */
+    public static ExecutorService newSingleThreadExecutor(String threadNamePrefix, boolean daemon) {
+        ThreadFactory factory = runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setName(threadNamePrefix);
+            thread.setDaemon(daemon);
+            return thread;
+        };
+        return Executors.newSingleThreadExecutor(factory);
+    }
+
     // === Runnable / Callable Wrapping Methods ===
 
     /**
