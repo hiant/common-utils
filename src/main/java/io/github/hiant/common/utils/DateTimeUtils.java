@@ -47,74 +47,32 @@ public class DateTimeUtils {
      * @return true if the date is before today, false otherwise (including invalid dates)
      */
     public static boolean isDateBeforeToday(String dateStr, String pattern) {
-        if (dateStr == null || pattern == null) {
-            return false;
-        }
-
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT)
-                    .withLocale(Locale.ROOT);
-
-            LocalDate inputDate = LocalDate.parse(dateStr, formatter);
-            LocalDate today = LocalDate.now();
-
-            return inputDate.isBefore(today);
-        } catch (DateTimeParseException e) {
-            return false;
-        }
+        LocalDate inputDate = parseDate(dateStr, pattern);
+        return inputDate != null && inputDate.isBefore(LocalDate.now());
     }
 
     /**
      * Check if the given date string represents a date after today.
      *
-     * @param dateStr the date string to check
+     * @param date    the date string to check
      * @param pattern the date pattern (e.g., "yyyy-MM-dd")
      * @return true if the date is after today, false otherwise (including invalid dates)
      */
-    public static boolean isDateAfterToday(String dateStr, String pattern) {
-        if (dateStr == null || pattern == null) {
-            return false;
-        }
-
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT)
-                    .withLocale(Locale.ROOT);
-
-            LocalDate inputDate = LocalDate.parse(dateStr, formatter);
-            LocalDate today = LocalDate.now();
-
-            return inputDate.isAfter(today);
-        } catch (DateTimeParseException e) {
-            return false;
-        }
+    public static boolean isDateAfterToday(String date, String pattern) {
+        LocalDate inputDate = parseDate(date, pattern);
+        return inputDate != null && inputDate.isAfter(LocalDate.now());
     }
 
     /**
      * Check if the given date-time string represents a time before now.
      *
-     * @param dateTimeStr the date-time string to check
-     * @param pattern     the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
+     * @param dateTime the date-time string to check
+     * @param pattern  the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
      * @return true if the date-time is before now, false otherwise (including invalid dates)
      */
-    public static boolean isDateTimeBeforeNow(String dateTimeStr, String pattern) {
-        if (dateTimeStr == null || pattern == null) {
-            return false;
-        }
-
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT)
-                    .withLocale(Locale.ROOT);
-
-            LocalDateTime inputDateTime = LocalDateTime.parse(dateTimeStr, formatter);
-            LocalDateTime now = LocalDateTime.now();
-
-            return inputDateTime.isBefore(now);
-        } catch (DateTimeParseException e) {
-            return false;
-        }
+    public static boolean isDateTimeBeforeNow(String dateTime, String pattern) {
+        LocalDateTime inputDateTime = parseDateTime(dateTime, pattern);
+        return inputDateTime != null && inputDateTime.isBefore(LocalDateTime.now());
     }
 
     /**
@@ -125,22 +83,8 @@ public class DateTimeUtils {
      * @return true if the date-time is after now, false otherwise (including invalid dates)
      */
     public static boolean isDateTimeAfterNow(String dateTimeStr, String pattern) {
-        if (dateTimeStr == null || pattern == null) {
-            return false;
-        }
-
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT)
-                    .withLocale(Locale.ROOT);
-
-            LocalDateTime inputDateTime = LocalDateTime.parse(dateTimeStr, formatter);
-            LocalDateTime now = LocalDateTime.now();
-
-            return inputDateTime.isAfter(now);
-        } catch (DateTimeParseException e) {
-            return false;
-        }
+        LocalDateTime inputDateTime = parseDateTime(dateTimeStr, pattern);
+        return inputDateTime != null && inputDateTime.isAfter(LocalDateTime.now());
     }
 
     /**
@@ -164,10 +108,49 @@ public class DateTimeUtils {
             if (start.isBefore(end) || start.equals(end)) {
                 return !now.isBefore(start) && !now.isAfter(end);
             } else {
+                // Handles cases where the time range crosses midnight (e.g., 22:00 to 02:00)
                 return !now.isBefore(start) || !now.isAfter(end);
             }
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("Invalid time format. Expected ISO_LOCAL_TIME ('HH:mm:ss')", e);
+        }
+    }
+
+    /**
+     * Parses a date string using the given pattern.
+     *
+     * @param date    the date string to parse
+     * @param pattern the date pattern
+     * @return the parsed LocalDate, or null if parsing fails
+     */
+    private static LocalDate parseDate(String date, String pattern) {
+        if (date == null || pattern == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(date, DateTimeFormatter.ofPattern(pattern)
+                    .withResolverStyle(ResolverStyle.STRICT));
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Parses a date-time string using the given pattern.
+     *
+     * @param dateTime the date-time string to parse
+     * @param pattern  the date-time pattern
+     * @return the parsed LocalDateTime, or null if parsing fails
+     */
+    private static LocalDateTime parseDateTime(String dateTime, String pattern) {
+        if (dateTime == null || pattern == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern(pattern)
+                    .withResolverStyle(ResolverStyle.STRICT));
+        } catch (DateTimeParseException e) {
+            return null;
         }
     }
 }

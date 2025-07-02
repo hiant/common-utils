@@ -23,6 +23,15 @@ import java.util.regex.Pattern;
 public class IpUtils {
     private static final String UNKNOWN = "unknown";
 
+    private static final String[] IP_HEADER_CANDIDATES = new String[]{
+            "X-Forwarded-For",
+            "Proxy-Client-IP",
+            "WL-Proxy-Client-IP",
+            "HTTP_CLIENT_IP",
+            "HTTP_X_FORWARDED_FOR"
+    };
+
+
     // Regular expression pattern for validating IPv4 addresses
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$");
@@ -70,27 +79,21 @@ public class IpUtils {
         }
         String ip = null;
         try {
-            ip = request.getHeader("x-forwarded-for");
-            if (ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip)) {
-                ip = request.getHeader("Proxy-Client-IP");
-            }
-            if (ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip)) {
-                ip = request.getHeader("WL-Proxy-Client-IP");
-            }
-            if (ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip)) {
-                ip = request.getHeader("HTTP_CLIENT_IP");
-            }
-            if (ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip)) {
-                ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+            for (String headerName : IP_HEADER_CANDIDATES) {
+                ip = request.getHeader(headerName);
+                if (ip != null && !ip.isEmpty() && !UNKNOWN.equalsIgnoreCase(ip)) {
+                    break;
+                }
             }
             if (ip == null || ip.isEmpty() || UNKNOWN.equalsIgnoreCase(ip)) {
                 ip = request.getRemoteAddr();
             }
         } catch (Exception e) {
-            log.warn("getIpAddr error", e);
+            log.warn("getRemoteAddr error", e);
         }
         return fullySimplifyIP(ip);
     }
+
 
     /**
      * Gets the hostname of the local machine.
