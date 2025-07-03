@@ -30,7 +30,7 @@ public class ThreadUtils {
     /**
      * Gets the current key used for trace ID in MDC.
      *
-     * @return the current trace ID key
+     * @return the current trace ID key.
      */
     public static String getTraceIdKey() {
         return traceIdKey;
@@ -39,14 +39,14 @@ public class ThreadUtils {
     /**
      * Sets a new key to be used for storing trace ID in MDC.
      *
-     * @param traceIdKey the new key to use for trace ID; must not be null
+     * @param traceIdKey the new key to use for trace ID; must not be null.
      */
     public static void setTraceIdKey(@NonNull String traceIdKey) {
         ThreadUtils.traceIdKey = traceIdKey;
     }
 
     /**
-     * Private constructor to prevent instantiation of utility class.
+     * Private constructor to prevent instantiation of this utility class.
      */
     private ThreadUtils() {
     }
@@ -56,8 +56,8 @@ public class ThreadUtils {
     /**
      * Sleeps for the given time using the specified time unit.
      *
-     * @param unit     the time unit to use
-     * @param duration the duration to sleep
+     * @param unit     The time unit to use.
+     * @param duration The duration to sleep.
      */
     public static void sleep(TimeUnit unit, long duration) {
         sleep(unit, duration, true);
@@ -66,9 +66,9 @@ public class ThreadUtils {
     /**
      * Sleeps for the given time using the specified time unit.
      *
-     * @param unit        the time unit to use
-     * @param duration    the duration to sleep
-     * @param isInterrupt whether to re-interrupt the thread if interrupted
+     * @param unit        The time unit to use.
+     * @param duration    The duration to sleep.
+     * @param isInterrupt Whether to re-interrupt the thread if interrupted.
      */
     public static void sleep(TimeUnit unit, long duration, boolean isInterrupt) {
         sleep(unit, duration, isInterrupt, null);
@@ -89,7 +89,7 @@ public class ThreadUtils {
     /**
      * Sleeps for the given number of milliseconds.
      *
-     * @param millis the number of milliseconds to sleep
+     * @param millis The number of milliseconds to sleep.
      */
     public static void sleep(long millis) {
         sleep(millis, true, null);
@@ -98,8 +98,8 @@ public class ThreadUtils {
     /**
      * Sleeps for the given number of milliseconds.
      *
-     * @param millis      the number of milliseconds to sleep
-     * @param isInterrupt whether to re-interrupt the thread if interrupted
+     * @param millis      The number of milliseconds to sleep.
+     * @param isInterrupt Whether to re-interrupt the thread if interrupted.
      */
     public static void sleep(long millis, boolean isInterrupt) {
         sleep(millis, isInterrupt, null);
@@ -108,8 +108,8 @@ public class ThreadUtils {
     /**
      * Sleeps for the given number of milliseconds.
      *
-     * @param millis   the number of milliseconds to sleep
-     * @param consumer an optional exception handler for InterruptedException
+     * @param millis   The number of milliseconds to sleep.
+     * @param consumer An optional exception handler for InterruptedException.
      */
     public static void sleep(long millis, Consumer<Throwable> consumer) {
         sleep(millis, true, consumer);
@@ -118,9 +118,9 @@ public class ThreadUtils {
     /**
      * Sleeps for the given number of milliseconds.
      *
-     * @param millis      the number of milliseconds to sleep
-     * @param isInterrupt whether to re-interrupt the thread if interrupted
-     * @param consumer    an optional exception handler for InterruptedException
+     * @param millis      The number of milliseconds to sleep.
+     * @param isInterrupt Whether to re-interrupt the thread if interrupted.
+     * @param consumer    An optional exception handler for InterruptedException.
      */
     public static void sleep(long millis, boolean isInterrupt, Consumer<Throwable> consumer) {
         try {
@@ -138,21 +138,21 @@ public class ThreadUtils {
     // === Thread Creation Methods ===
 
     /**
-     * Creates a new non-daemon thread with the given runnable.
+     * Creates a new daemon thread with the given runnable.
      *
-     * @param runnable the task to run in the new thread
-     * @return a new thread instance
+     * @param runnable The task to run in the new thread.
+     * @return A new thread instance.
      */
     public static Thread newThread(Runnable runnable) {
-        return newThread(runnable, false);
+        return newThread(runnable, true);
     }
 
     /**
      * Creates a new thread with the given runnable.
      *
-     * @param runnable the task to run in the new thread
-     * @param daemon   whether the thread should be a daemon thread
-     * @return a new thread instance
+     * @param runnable The task to run in the new thread.
+     * @param daemon   Whether the thread should be a daemon thread.
+     * @return A new thread instance.
      */
     public static Thread newThread(Runnable runnable, boolean daemon) {
         Thread thread = new Thread(wrap(runnable));
@@ -161,14 +161,14 @@ public class ThreadUtils {
     }
 
     /**
-     * Creates a new non-daemon thread with the given name and runnable.
+     * Creates a new daemon thread with the given name and runnable.
      *
-     * @param runnable the task to run in the new thread
-     * @param name     the name of the new thread
-     * @return a new thread instance
+     * @param runnable The task to run in the new thread.
+     * @param name     The name of the new thread.
+     * @return A new thread instance.
      */
     public static Thread newThread(Runnable runnable, String name) {
-        return newThread(runnable, name, false);
+        return newThread(runnable, name, true);
     }
 
     /**
@@ -286,13 +286,7 @@ public class ThreadUtils {
      * @return configured ScheduledThreadPoolExecutor
      */
     public static ScheduledThreadPoolExecutor newScheduledThreadPoolExecutor(String threadNamePrefix, int corePoolSize, boolean daemon, RejectedExecutionHandler handler) {
-        ThreadFactory factory = runnable -> {
-            Thread thread = new Thread(runnable);
-            thread.setName(threadNamePrefix);
-            thread.setDaemon(daemon);
-            return thread;
-        };
-        return new ScheduledThreadPoolExecutor(corePoolSize, factory, handler);
+        return new ScheduledThreadPoolExecutor(corePoolSize, newThreadFactory(threadNamePrefix, Thread.NORM_PRIORITY, daemon), handler);
     }
 
     /**
