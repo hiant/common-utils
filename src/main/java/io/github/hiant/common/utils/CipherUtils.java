@@ -5,9 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.*;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.function.Consumer;
 
@@ -244,4 +250,78 @@ public class CipherUtils {
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
+
+    /**
+     * Generates an RSA key pair with a key size of 2048 bits.
+     *
+     * @return a {@link KeyPair} containing the generated public and private keys
+     * @throws NoSuchAlgorithmException if the RSA algorithm is not available in the current environment
+     */
+    public static KeyPair generateKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(RSA_ALGORITHM);
+        keyPairGenerator.initialize(2048);
+        return keyPairGenerator.generateKeyPair();
+    }
+
+    /**
+     * Saves the public and private keys of an RSA key pair to the specified file paths in Base64-encoded format.
+     *
+     * @param publicKeyPath  the file path where the public key will be saved
+     * @param privateKeyPath the file path where the private key will be saved
+     * @param keyPair        the {@link KeyPair} to save
+     * @throws IOException if an I/O error occurs during file writing
+     */
+    public static void saveKeys(String publicKeyPath, String privateKeyPath, KeyPair keyPair) throws IOException {
+        PublicKey publicKey = keyPair.getPublic();
+        byte[] publicKeyBytes = publicKey.getEncoded();
+        String publicKeyString = Base64.getEncoder().encodeToString(publicKeyBytes);
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(publicKeyPath))) {
+            writer.write(publicKeyString);
+        }
+
+        PrivateKey privateKey = keyPair.getPrivate();
+        byte[] privateKeyBytes = privateKey.getEncoded();
+        String privateKeyString = Base64.getEncoder().encodeToString(privateKeyBytes);
+        try (BufferedWriter writer = Files.newBufferedWriter(Paths.get(privateKeyPath))) {
+            writer.write(privateKeyString);
+        }
+    }
+
+    /**
+     * Loads a public key from the specified file.
+     * <p>
+     * The file should contain a Base64-encoded X.509 encoded public key.
+     *
+     * @param keyPath the file path from which to load the public key
+     * @return the loaded {@link PublicKey}
+     * @throws Exception if an error occurs during reading or key specification parsing
+     */
+    public static PublicKey loadPublicKey(String keyPath) throws Exception {
+        String publicKeyString = new String(Files.readAllBytes(Paths.get(keyPath)), StandardCharsets.UTF_8);
+        byte[] publicKeyBytes = Base64.getDecoder().decode(publicKeyString);
+
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicKeyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(RSA_ALGORITHM);
+        return keyFactory.generatePublic(keySpec);
+    }
+
+    /**
+     * Loads a private key from the specified file.
+     * <p>
+     * The file should contain a Base64-encoded PKCS#8 encoded private key.
+     *
+     * @param keyPath the file path from which to load the private key
+     * @return the loaded {@link PrivateKey}
+     * @throws Exception if an error occurs during reading or key specification parsing
+     */
+    public static PrivateKey loadPrivateKey(String keyPath) throws Exception {
+        String privateKeyString = new String(Files.readAllBytes(Paths.get(keyPath)), StandardCharsets.UTF_8);
+        byte[] privateKeyBytes = Base64.getDecoder().decode(privateKeyString);
+
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+        KeyFactory keyFactory = KeyFactory.getInstance(RSA_ALGORITHM);
+        return keyFactory.generatePrivate(keySpec);
+    }
+
+
 }
