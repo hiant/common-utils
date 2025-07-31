@@ -6,7 +6,9 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.PBEParameterSpec;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.security.*;
@@ -287,8 +289,7 @@ public final class KeyUtils {
      * @throws IOException              on I/O failure
      * @throws IllegalArgumentException if password is empty
      */
-    public static void saveEncryptedPrivateKey(PrivateKey privateKey, Path path,
-                                               char[] password, PBEConfig config)
+    public static void saveEncryptedPrivateKey(PrivateKey privateKey, Path path, char[] password, PBEConfig config)
             throws GeneralSecurityException, IOException {
         Objects.requireNonNull(privateKey);
         Objects.requireNonNull(path);
@@ -364,6 +365,50 @@ public final class KeyUtils {
         return loadKey(algorithm, path, false);
     }
 
+    /**
+     * Loads a public key from an input stream.
+     *
+     * @param algorithm key algorithm, e.g. "RSA"
+     * @param in        input stream containing PEM or Base64-encoded X.509 DER public key
+     * @return public key
+     * @throws KeyReadException   on I/O failure
+     * @throws KeyFormatException on format or algorithm error
+     */
+    public static PublicKey loadPublicKey(String algorithm, InputStream in)
+            throws KeyReadException, KeyFormatException {
+        Objects.requireNonNull(algorithm);
+        Objects.requireNonNull(in);
+        try {
+            byte[] raw = readAllBytes(in);
+            byte[] der = decodePem(new String(raw, StandardCharsets.UTF_8).trim());
+            validateKeyBytes(algorithm, der);
+            return KeyFactory.getInstance(algorithm)
+                    .generatePublic(new X509EncodedKeySpec(der));
+        } catch (IOException e) {
+            throw new KeyReadException("Failed to read public key from stream", e);
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new KeyFormatException("Invalid public key format", e);
+        }
+    }
+
+    /**
+     * Reads all bytes from an input stream.
+     *
+     * @param in input stream to read from
+     * @return byte array containing all data from the stream
+     * @throws IOException on I/O failure
+     */
+    private static byte[] readAllBytes(InputStream in) throws IOException {
+        int n;
+        byte[] buf = new byte[in.available()];
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static <T extends Key> T loadKey(String algorithm, Path path, boolean isPrivate)
             throws KeyReadException, KeyFormatException {
@@ -374,7 +419,7 @@ public final class KeyUtils {
             byte[] decoded = decodePem(content);
             KeyFactory kf = KeyFactory.getInstance(algorithm);
             KeySpec spec = isPrivate ? new PKCS8EncodedKeySpec(decoded) : new X509EncodedKeySpec(decoded);
-            T key = (T) (isPrivate ? kf.generatePrivate((PKCS8EncodedKeySpec) spec) : kf.generatePublic((X509EncodedKeySpec) spec));
+            T key = (T) (isPrivate ? kf.generatePrivate(spec) : kf.generatePublic(spec));
             validateKeyLength(algorithm, key.getEncoded());
             return key;
         } catch (IOException e) {
@@ -475,6 +520,35 @@ public final class KeyUtils {
                     ": " + (keyBytes == null ? 0 : keyBytes.length) + " < " + min + " bytes");
     }
 
+    /**
+     * Verifies that a private key and public key (provided as byte array) form a matching pair by
+     * performing a random sign/verify cycle.
+     *
+     * @param privateKey     private key
+     * @param publicKeyBytes byte array containing the encoded public key
+     * @param algorithm      key algorithm, e.g. "RSA", "EC", "DSA"
+     * @return {@code true} if the keys match
+     * @throws GeneralSecurityException on cryptographic failure
+     * @throws IllegalArgumentException if publicKeyBytes is null or empty
+     */
+    public static boolean verifyKeyPair(PrivateKey privateKey, byte[] publicKeyBytes, String algorithm)
+            throws GeneralSecurityException {
+        return verifyKeyPair(privateKey, publicKeyBytes, algorithm, null);
+    }
+
+    /**
+     * Verifies that a private key and public key (provided as byte array) form a matching pair by
+     * performing a random sign/verify cycle.
+     *
+     * @param privateKey     private key
+     * @param publicKeyBytes byte array containing the encoded public key
+     * @param algorithm      key algorithm, e.g. "RSA", "EC", "DSA"
+     * @param hashAlg        hash algorithm, e.g. {@code SHA-256}. If null, {@link #DEFAULT_HASH_ALG} will be used.
+     * @return {@code true} if the keys match
+     * @throws GeneralSecurityException on cryptographic failure
+     * @throws IllegalArgumentException if publicKeyBytes is null or empty
+     * @throws KeyFormatException       if the public key bytes are invalid
+     */
     public static boolean verifyKeyPair(PrivateKey privateKey, byte[] publicKeyBytes, String algorithm, String hashAlg)
             throws GeneralSecurityException {
 
@@ -499,6 +573,20 @@ public final class KeyUtils {
         } catch (InvalidKeySpecException e) {
             throw new KeyFormatException("Invalid public key encoding", e);
         }
+    }
+
+    /**
+     * Verifies that a private key and public key form a matching pair by
+     * performing a random sign/verify cycle.
+     *
+     * @param privateKey private key
+     * @param publicKey  public key
+     * @return {@code true} if the keys match
+     * @throws GeneralSecurityException on cryptographic failure
+     */
+    public static boolean verifyKeyPair(PrivateKey privateKey, PublicKey publicKey)
+            throws GeneralSecurityException {
+        return verifyKeyPair(privateKey, publicKey, null);
     }
 
     /**
