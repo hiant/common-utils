@@ -449,6 +449,59 @@ public final class KeyUtils {
     /* ---------------------------------------------------------------------- */
 
     /**
+     * Validates raw byte[] against algorithm-specific minimum length and
+     * ensures DER structure can be parsed (PKCS#8 / X.509).
+     *
+     * @param algorithm algorithm name
+     * @param keyBytes  encoded bytes
+     * @throws IllegalArgumentException if malformed or too short
+     */
+    public static void validateKeyBytes(String algorithm, byte[] keyBytes) {
+        Objects.requireNonNull(algorithm);
+        int min = 64;
+        switch (algorithm.toUpperCase()) {
+            case "RSA":
+                min = 512;
+                break;
+            case "EC":
+                min = 80;
+                break;
+            case "DSA":
+                min = 64;
+                break;
+        }
+        if (keyBytes == null || keyBytes.length < min)
+            throw new IllegalArgumentException("Key too short for " + algorithm +
+                    ": " + (keyBytes == null ? 0 : keyBytes.length) + " < " + min + " bytes");
+    }
+
+    public static boolean verifyKeyPair(PrivateKey privateKey, byte[] publicKeyBytes, String algorithm, String hashAlg)
+            throws GeneralSecurityException {
+
+        Objects.requireNonNull(publicKeyBytes, "publicKeyBytes must not be null");
+        Objects.requireNonNull(privateKey, "privateKey must not be null");
+        Objects.requireNonNull(algorithm, "algorithm must not be null");
+
+        if (publicKeyBytes.length == 0) {
+            throw new IllegalArgumentException("publicKeyBytes must not be empty");
+        }
+
+        validateKeyBytes(algorithm, publicKeyBytes);
+
+        if (hashAlg == null || hashAlg.trim().isEmpty()) {
+            hashAlg = DEFAULT_HASH_ALG;
+        }
+
+        try {
+            KeyFactory kf = KeyFactory.getInstance(algorithm);
+            PublicKey publicKey = kf.generatePublic(new X509EncodedKeySpec(publicKeyBytes));
+            return verifyKeyPair(privateKey, publicKey, hashAlg);
+        } catch (InvalidKeySpecException e) {
+            throw new KeyFormatException("Invalid public key encoding", e);
+        }
+    }
+
+    /**
      * Verifies that a private key and public key form a matching pair by
      * performing a random sign/verify cycle.
      *
