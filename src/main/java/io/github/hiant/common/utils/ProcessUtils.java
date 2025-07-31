@@ -199,20 +199,11 @@ public class ProcessUtils {
         if (process == null) return;
         try {
             process.destroyForcibly();
-            closeQuietly(process.getInputStream());
-            closeQuietly(process.getErrorStream());
-            closeQuietly(process.getOutputStream());
+            Quietly.close(process.getInputStream());
+            Quietly.close(process.getErrorStream());
+            Quietly.close(process.getOutputStream());
         } catch (Exception ignored) {
             // Log if needed
-        }
-    }
-
-    private static void closeQuietly(Closeable c) {
-        if (c != null) {
-            try {
-                c.close();
-            } catch (IOException ignored) {
-            }
         }
     }
 
