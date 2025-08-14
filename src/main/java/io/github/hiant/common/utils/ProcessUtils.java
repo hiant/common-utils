@@ -1,13 +1,20 @@
 package io.github.hiant.common.utils;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringReader;
 import java.nio.charset.Charset;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 /**
@@ -41,26 +48,7 @@ public class ProcessUtils {
     private static final int QUEUE_CAPACITY = 100;
     private static final int READ_TIMEOUT_DIVIDER = 5;
 
-    private static final ThreadPoolExecutor EXECUTOR =
-            new ThreadPoolExecutor(
-                    CORE_POOL_SIZE,
-                    MAX_POOL_SIZE,
-                    60L, TimeUnit.SECONDS,
-                    new LinkedBlockingQueue<>(QUEUE_CAPACITY),
-                    new ThreadFactory() {
-                        private final ThreadFactory defaultFactory = Executors.defaultThreadFactory();
-                        private final AtomicInteger counter = new AtomicInteger(1);
-
-                        @Override
-                        public Thread newThread(Runnable r) {
-                            Thread t = defaultFactory.newThread(r);
-                            t.setName("ProcessUtils-Worker-" + counter.getAndIncrement());
-                            t.setDaemon(true);
-                            return t;
-                        }
-                    },
-                    new ThreadPoolExecutor.CallerRunsPolicy()
-            );
+    private static final ThreadPoolExecutor EXECUTOR = ThreadUtils.newThreadPoolExecutor("ProcessUtils-Worker-", CORE_POOL_SIZE, MAX_POOL_SIZE, QUEUE_CAPACITY, 60, Thread.NORM_PRIORITY, true);
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -123,8 +111,7 @@ public class ProcessUtils {
         Process process = new ProcessBuilder(command).start();
 
         // Close stdin to prevent blocking on input.
-        try (OutputStream os = process.getOutputStream()) {
-        }
+        process.getOutputStream().close();
 
         Future<StreamResult> stdoutFuture = readStream(process.getInputStream(), charset, stdoutConsumer);
         Future<StreamResult> stderrFuture = readStream(process.getErrorStream(), charset, stderrConsumer);
@@ -276,7 +263,9 @@ public class ProcessUtils {
                 String line;
                 int count = 0;
                 while ((line = br.readLine()) != null && count < 5) {
-                    if (count > 0) sb.append("\\n");
+                    if (count > 0) {
+                        sb.append("\\n");
+                    }
                     sb.append(line);
                     count++;
                 }
