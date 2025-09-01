@@ -10,6 +10,7 @@ import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEvent;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.NoSuchMessageException;
 import org.springframework.core.ResolvableType;
@@ -87,7 +88,7 @@ public class SpringContextUtils {
     /**
      * Determine whether the bean with the given name matches the specified type.
      *
-     * @param s The name of the bean to query.
+     * @param s              The name of the bean to query.
      * @param resolvableType The type to check against.
      * @return {@code true} if the bean matches the specified type, {@code false} otherwise.
      * @throws NoSuchBeanDefinitionException If there is no bean with the given name.
@@ -100,7 +101,7 @@ public class SpringContextUtils {
      * Return the bean instance that uniquely matches the given object type, if any.
      *
      * @param aClass The type of the bean to retrieve.
-     * @param <T> The type of the bean.
+     * @param <T>    The type of the bean.
      * @return The bean instance.
      * @throws BeansException If the bean could not be found or created.
      */
@@ -122,9 +123,9 @@ public class SpringContextUtils {
      * optionally excluding non-singletons and/or lazily initialized ones.
      *
      * @param aClass The type of the bean to retrieve.
-     * @param b Whether to include non-singletons.
-     * @param b1 Whether to include lazily initialized beans.
-     * @param <T> The type of the bean.
+     * @param b      Whether to include non-singletons.
+     * @param b1     Whether to include lazily initialized beans.
+     * @param <T>    The type of the bean.
      * @return A map of bean names to bean instances.
      * @throws BeansException If the beans could not be found or created.
      */
@@ -135,7 +136,7 @@ public class SpringContextUtils {
     /**
      * Determine whether the bean with the given name matches the specified type.
      *
-     * @param s The name of the bean to query.
+     * @param s      The name of the bean to query.
      * @param aClass The type to check against.
      * @return {@code true} if the bean matches the specified type, {@code false} otherwise.
      * @throws NoSuchBeanDefinitionException If there is no bean with the given name.
@@ -157,9 +158,9 @@ public class SpringContextUtils {
     /**
      * Return the bean instance that uniquely matches the given object type, if any.
      *
-     * @param aClass The type of the bean to retrieve.
+     * @param aClass  The type of the bean to retrieve.
      * @param objects Arguments to use when creating a bean instance.
-     * @param <T> The type of the bean.
+     * @param <T>     The type of the bean.
      * @return The bean instance.
      * @throws BeansException If the bean could not be found or created.
      */
@@ -231,10 +232,10 @@ public class SpringContextUtils {
     /**
      * Try to retrieve the given message, using the given parameters and default.
      *
-     * @param s The code of the message to retrieve.
+     * @param s       The code of the message to retrieve.
      * @param objects Arguments for the message.
-     * @param s1 The default message to return if no message is found.
-     * @param locale The locale to use.
+     * @param s1      The default message to return if no message is found.
+     * @param locale  The locale to use.
      * @return The resolved message.
      */
     @Nullable
@@ -255,7 +256,7 @@ public class SpringContextUtils {
      * Return an {@link ObjectProvider} that provides access to the bean instance that uniquely matches the given object type.
      *
      * @param aClass The type of the bean to retrieve.
-     * @param <T> The type of the bean.
+     * @param <T>    The type of the bean.
      * @return An ObjectProvider for the bean.
      */
     public static <T> ObjectProvider<T> getBeanProvider(Class<T> aClass) {
@@ -311,8 +312,8 @@ public class SpringContextUtils {
      * optionally excluding non-singletons and/or lazily initialized ones.
      *
      * @param resolvableType The type to look for.
-     * @param b Whether to include non-singletons.
-     * @param b1 Whether to include lazily initialized beans.
+     * @param b              Whether to include non-singletons.
+     * @param b1             Whether to include lazily initialized beans.
      * @return An array of bean names.
      */
     public static String[] getBeanNamesForType(ResolvableType resolvableType, boolean b, boolean b1) {
@@ -333,7 +334,7 @@ public class SpringContextUtils {
      * Return an {@link ObjectProvider} that provides access to the bean instance that uniquely matches the given object type.
      *
      * @param resolvableType The type of the bean to retrieve.
-     * @param <T> The type of the bean.
+     * @param <T>            The type of the bean.
      * @return An ObjectProvider for the bean.
      */
     public static <T> ObjectProvider<T> getBeanProvider(ResolvableType resolvableType) {
@@ -343,9 +344,9 @@ public class SpringContextUtils {
     /**
      * Find a {@link Annotation} of {@code annotationType} on the specified bean, traversing its annotations and superclasses.
      *
-     * @param s The name of the bean to query.
+     * @param s      The name of the bean to query.
      * @param aClass The annotation type to look for.
-     * @param <A> The annotation type.
+     * @param <A>    The annotation type.
      * @return The annotation found, or {@code null} if none.
      * @throws NoSuchBeanDefinitionException If there is no bean with the given name.
      */
@@ -389,9 +390,9 @@ public class SpringContextUtils {
     /**
      * Try to retrieve the given message, using the given parameters.
      *
-     * @param s The code of the message to retrieve.
+     * @param s       The code of the message to retrieve.
      * @param objects Arguments for the message.
-     * @param locale The locale to use.
+     * @param locale  The locale to use.
      * @return The resolved message.
      * @throws NoSuchMessageException If no message is found.
      */
@@ -452,8 +453,8 @@ public class SpringContextUtils {
      * optionally excluding non-singletons and/or lazily initialized ones.
      *
      * @param aClass The type to look for.
-     * @param b Whether to include non-singletons.
-     * @param b1 Whether to include lazily initialized beans.
+     * @param b      Whether to include non-singletons.
+     * @param b1     Whether to include lazily initialized beans.
      * @return An array of bean names.
      */
     public static String[] getBeanNamesForType(Class<?> aClass, boolean b, boolean b1) {
@@ -463,9 +464,9 @@ public class SpringContextUtils {
     /**
      * Return the bean instance that uniquely matches the given object type, if any.
      *
-     * @param s The name of the bean to retrieve.
+     * @param s      The name of the bean to retrieve.
      * @param aClass The type of the bean to retrieve.
-     * @param <T> The type of the bean.
+     * @param <T>    The type of the bean.
      * @return The bean instance.
      * @throws BeansException If the bean could not be found or created.
      */
@@ -508,7 +509,7 @@ public class SpringContextUtils {
      * Try to retrieve the given message, using the given {@link MessageSourceResolvable}.
      *
      * @param messageSourceResolvable The MessageSourceResolvable to resolve.
-     * @param locale The locale to use.
+     * @param locale                  The locale to use.
      * @return The resolved message.
      * @throws NoSuchMessageException If no message is found.
      */
@@ -519,7 +520,7 @@ public class SpringContextUtils {
     /**
      * Return the bean instance that uniquely matches the given object type, if any.
      *
-     * @param s The name of the bean to retrieve.
+     * @param s       The name of the bean to retrieve.
      * @param objects Arguments to use when creating a bean instance.
      * @return The bean instance.
      * @throws BeansException If the bean could not be found or created.
@@ -532,7 +533,7 @@ public class SpringContextUtils {
      * Return the bean instances that match the given object type (including subclasses).
      *
      * @param aClass The type of the bean to retrieve.
-     * @param <T> The type of the bean.
+     * @param <T>    The type of the bean.
      * @return A map of bean names to bean instances.
      * @throws BeansException If the beans could not be found or created.
      */
@@ -544,7 +545,7 @@ public class SpringContextUtils {
      * Updates or registers a bean definition in the Spring context.
      * If a bean with the given name already exists, its definition will be removed and re-registered.
      *
-     * @param beanName The name of the bean.
+     * @param beanName       The name of the bean.
      * @param beanDefinition The BeanDefinition to register or update.
      */
     public static void updateBeanDefinition(String beanName, BeanDefinition beanDefinition) {
@@ -557,6 +558,17 @@ public class SpringContextUtils {
         } else {
             throw new IllegalStateException("ApplicationContext is not a BeanDefinitionRegistry.");
         }
+    }
+
+    /**
+     * register bean
+     *
+     * @param beanName The name of the bean.
+     * @param bean     The bean to register.
+     */
+    public static void registerBean(String beanName, Object bean) {
+        ConfigurableApplicationContext context = (ConfigurableApplicationContext) applicationContext;
+        context.getBeanFactory().registerSingleton(beanName, bean);
     }
 
 }

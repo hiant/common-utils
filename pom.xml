@@ -4,7 +4,7 @@
 
     <groupId>io.github.hiant</groupId>
     <artifactId>common-utils</artifactId>
-    <version>1.0.25</version>
+    <version>1.0.26</version>
     <name>${project.artifactId}</name>
     <packaging>jar</packaging>
     <description>Offers a library of java utilities</description>
@@ -43,35 +43,35 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-expression</artifactId>
-            <version>5.2.15.RELEASE</version>
+            <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
-            <version>5.2.15.RELEASE</version>
+            <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
-            <version>5.2.15.RELEASE</version>
+            <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-jdbc</artifactId>
-            <version>5.2.15.RELEASE</version>
+            <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
 
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
-            <version>3.0.0</version>
+            <version>4.3.1</version>
             <optional>true</optional>
         </dependency>
 
@@ -131,7 +131,7 @@
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-test</artifactId>
-            <version>5.2.15.RELEASE</version>
+            <version>5.3.31</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
