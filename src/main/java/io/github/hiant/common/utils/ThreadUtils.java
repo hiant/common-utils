@@ -2,8 +2,6 @@ package io.github.hiant.common.utils;
 
 import lombok.NonNull;
 import org.slf4j.MDC;
-import org.springframework.core.task.TaskDecorator;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.Map;
 import java.util.concurrent.*;
@@ -206,34 +204,6 @@ public class ThreadUtils {
     }
 
     // === Thread Pool Configuration Methods ===
-
-    /**
-     * Creates a new ThreadPoolTaskExecutor with custom configuration.
-     *
-     * @param threadNamePrefix prefix for thread names
-     * @param corePoolSize     the core pool size
-     * @param maxPoolSize      the maximum pool size
-     * @param queueCapacity    the capacity of the task queue
-     * @param keepAliveSeconds the keep-alive time in seconds
-     * @param daemon           whether threads should be daemon threads
-     * @param taskDecorator    optional task decorator
-     * @return configured and initialized ThreadPoolTaskExecutor
-     */
-    public static ThreadPoolTaskExecutor newThreadPoolTaskExecutor(String threadNamePrefix, int corePoolSize, int maxPoolSize, int queueCapacity, int keepAliveSeconds, boolean daemon, TaskDecorator taskDecorator) {
-        ThreadPoolTaskExecutor threadPoolTaskExecutor = new ThreadPoolTaskExecutor();
-        threadPoolTaskExecutor.setCorePoolSize(corePoolSize);
-        threadPoolTaskExecutor.setMaxPoolSize(maxPoolSize);
-        threadPoolTaskExecutor.setQueueCapacity(queueCapacity);
-        threadPoolTaskExecutor.setThreadNamePrefix(threadNamePrefix);
-        threadPoolTaskExecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
-        threadPoolTaskExecutor.setKeepAliveSeconds(keepAliveSeconds);
-        threadPoolTaskExecutor.setDaemon(daemon);
-        if (taskDecorator != null) {
-            threadPoolTaskExecutor.setTaskDecorator(taskDecorator);
-        }
-        threadPoolTaskExecutor.initialize();
-        return threadPoolTaskExecutor;
-    }
 
     /**
      * Creates a custom ThreadFactory.
