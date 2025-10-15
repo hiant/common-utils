@@ -76,14 +76,32 @@ public class ProcessUtils {
      */
     public static ProcessResult run(String command)
             throws IOException, InterruptedException, ExecutionException, TimeoutException {
+        return run(command, 10);
+    }
+
+    /**
+     * Executes a single command string via the system shell, with a default timeout of 10 seconds.
+     * When no callbacks are provided, stdout and stderr are collected and truncated if too long.
+     *
+     * @param command The command string to execute.
+     * @param timeout Maximum time to wait for process completion.
+     * @return ProcessResult containing execution details.
+     * @throws IOException          if an I/O error occurs.
+     * @throws InterruptedException if the current thread is interrupted while waiting.
+     * @throws ExecutionException   if reading output fails.
+     * @throws TimeoutException     if the command times out.
+     */
+    public static ProcessResult run(String command, long timeout)
+            throws IOException, InterruptedException, ExecutionException, TimeoutException {
         return run(
                 Arrays.asList(resolveShell(), resolveShellFlag(), command),
-                Duration.ofSeconds(10),
+                Duration.ofSeconds(timeout),
                 Charset.defaultCharset(),
                 null,
                 null
         );
     }
+
 
     /**
      * Executes a command with full control over parameters and callbacks.
