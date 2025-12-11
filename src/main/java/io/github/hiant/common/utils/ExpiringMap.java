@@ -4,8 +4,23 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.lang.ref.WeakReference;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.DelayQueue;
+import java.util.concurrent.Delayed;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -135,7 +150,7 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
         checkClosed();
         cleanUpIfNecessary();
         ExpiringEntry<V> entry = dataMap.remove(key);
-        if (entry != null) notifyExpiration((K) key, entry.getValue(), false);
+        if (entry != null) notifyExpiration((K) key, entry, false);
         return entry != null ? entry.getValue() : null;
     }
 
@@ -219,7 +234,7 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
         ExpiringEntry<V> entry = dataMap.get(key);
         if (entry != null && Objects.equals(entry.getValue(), value) && !entry.isExpired()) {
             boolean removed = dataMap.remove(key, entry);
-            if (removed) notifyExpiration((K) key, entry.getValue(), false);
+            if (removed) notifyExpiration((K) key, entry, false);
             return removed;
         }
         return false;
@@ -257,7 +272,7 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
             ExpiringEntry<V> newEntry = new ExpiringEntry<>(value, expirationNanos);
             if (dataMap.replace(key, currentEntry, newEntry)) {
                 delayQueue.put(new ExpiringKey<>(key, expirationNanos, sequenceGenerator.incrementAndGet()));
-                notifyExpiration(key, currentEntry.getValue(), false);
+                notifyExpiration(key, currentEntry, false);
                 return currentEntry.getValue();
             }
         }
@@ -274,10 +289,18 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
     }
 
     public boolean removeExpirationListener(Consumer<ExpirationEvent<K, V>> listener) {
+        pruneListeners();
         return listeners.removeIf(wrapper -> wrapper.get() == listener);
     }
 
-    private void notifyExpiration(K key, V value, boolean isExpired) {
+    private void notifyExpiration(K key, ExpiringEntry<V> entry, boolean isExpired) {
+        if (entry == null) return;
+        if (!entry.markNotified()) return;
+        notifyListeners(key, entry.getValue(), isExpired);
+    }
+
+    private void notifyListeners(K key, V value, boolean isExpired) {
+        pruneListeners();
         for (ListenerWrapper wrapper : listeners) {
             Consumer<ExpirationEvent<K, V>> listener = wrapper.get();
             if (listener != null) {
@@ -301,6 +324,11 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
             if (!closed) {
                 closed = true;
                 scheduler.shutdownNow();
+                try {
+                    scheduler.awaitTermination(5, TimeUnit.SECONDS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
 
                 ExpiringKey<K> key;
                 while ((key = delayQueue.poll()) != null) {
@@ -330,20 +358,21 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
             ExpiringKey<K> expiredKey;
             while ((expiredKey = delayQueue.poll()) != null) {
                 ExpiringEntry<V> entry = dataMap.get(expiredKey.getKey());
-                if (entry != null && entry.expirationNanos == expiredKey.expirationNanos) {
-                    if (entry.isExpired()) {
-                        dataMap.remove(expiredKey.getKey(), entry);
-                        notifyExpiration(expiredKey.getKey(), entry.getValue(), true);
+                if (entry != null && entry.expirationNanos == expiredKey.expirationNanos && entry.isExpired()) {
+                    if (dataMap.remove(expiredKey.getKey(), entry)) {
+                        notifyExpiration(expiredKey.getKey(), entry, true);
                     }
                 }
             }
 
             dataMap.forEach((key, entry) -> {
                 if (entry.isExpired()) {
-                    dataMap.remove(key, entry);
-                    notifyExpiration(key, entry.getValue(), true);
+                    if (dataMap.remove(key, entry)) {
+                        notifyExpiration(key, entry, true);
+                    }
                 }
             });
+            pruneListeners();
         } catch (Exception e) {
             log.error("Cleanup error", e);
         } finally {
@@ -361,6 +390,7 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
     private static class ExpiringEntry<V> {
         final V value;
         final long expirationNanos;
+        private final AtomicBoolean notified = new AtomicBoolean(false);
 
         ExpiringEntry(V value, long expirationNanos) {
             this.value = value;
@@ -373,6 +403,10 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
 
         V getValue() {
             return value;
+        }
+
+        boolean markNotified() {
+            return notified.compareAndSet(false, true);
         }
     }
 
@@ -436,5 +470,9 @@ public class ExpiringMap<K, V> implements Map<K, V>, AutoCloseable {
             Consumer<ExpirationEvent<K, V>> other = ((ListenerWrapper<K, V>) obj).get();
             return other != null && other.equals(get());
         }
+    }
+
+    private void pruneListeners() {
+        listeners.removeIf(wrapper -> wrapper.get() == null);
     }
 }
