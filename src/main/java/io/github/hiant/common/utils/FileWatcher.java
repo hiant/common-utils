@@ -6,14 +6,28 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.ClosedWatchServiceException;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-import static java.nio.file.StandardWatchEventKinds.*;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
+import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
 /**
  * Enhanced file watcher utility for monitoring file changes and triggering events
@@ -248,6 +262,7 @@ public class FileWatcher implements AutoCloseable {
                             synchronized (fileListeners) {
                                 listener = fileListeners.get(fullPath);
                             }
+                            cancelScheduledTask(fullPath);
                             if (listener != null) {
                                 log.info("File deleted: {}", fullPath);
                                 fileAttributesCache.remove(fullPath);
@@ -293,15 +308,20 @@ public class FileWatcher implements AutoCloseable {
      */
     private void scheduleFileProcessing(Path filePath, WatchEvent.Kind<Path> type) {
         // Debounce: cancel any previously scheduled task for this file
+        cancelScheduledTask(filePath);
+
+        RetryTask task = new RetryTask(filePath, type);
+        ScheduledFuture<?> newScheduledTask = retryExecutor.schedule(task, properties.getFileChangeDelay(), TimeUnit.MILLISECONDS);
+        task.setSelfFuture(newScheduledTask);
+        scheduledTasks.put(filePath, newScheduledTask);
+    }
+
+    private void cancelScheduledTask(Path filePath) {
         ScheduledFuture<?> existingTask = scheduledTasks.remove(filePath);
         if (existingTask != null) {
             existingTask.cancel(false); // Don't interrupt if already running
             log.debug("Cancelled pending task for file: {}", filePath);
         }
-
-        RetryTask task = new RetryTask(filePath, type);
-        ScheduledFuture<?> newScheduledTask = retryExecutor.schedule(task, properties.getFileChangeDelay(), TimeUnit.MILLISECONDS);
-        scheduledTasks.put(filePath, newScheduledTask);
     }
 
     /**
@@ -376,6 +396,11 @@ public class FileWatcher implements AutoCloseable {
         private final Path filePath;
         private final WatchEvent.Kind<Path> type;
         private int attempt = 0;
+        private volatile ScheduledFuture<?> selfFuture;
+
+        void setSelfFuture(ScheduledFuture<?> selfFuture) {
+            this.selfFuture = selfFuture;
+        }
 
         public RetryTask(Path filePath, WatchEvent.Kind<Path> type) {
             this.filePath = filePath;
@@ -384,6 +409,7 @@ public class FileWatcher implements AutoCloseable {
 
         @Override
         public void run() {
+            boolean rescheduled = false;
             try (MDC.MDCCloseable ignored = createMdcContext(filePath)) {
                 attempt++;
                 log.info("Processing file change event (attempt {}): {}", attempt, type);
@@ -414,9 +440,16 @@ public class FileWatcher implements AutoCloseable {
                     log.warn("File processing failed (attempt {}), retrying in {}ms: {}",
                             attempt, nextDelay, e.getMessage());
 
-                    retryExecutor.schedule(this, nextDelay, TimeUnit.MILLISECONDS);
+                    ScheduledFuture<?> retry = retryExecutor.schedule(this, nextDelay, TimeUnit.MILLISECONDS);
+                    setSelfFuture(retry);
+                    scheduledTasks.put(filePath, retry);
+                    rescheduled = true;
                 } else {
                     log.error("File processing failed after maximum retries", e);
+                }
+            } finally {
+                if (!rescheduled) {
+                    scheduledTasks.remove(filePath, selfFuture);
                 }
             }
         }

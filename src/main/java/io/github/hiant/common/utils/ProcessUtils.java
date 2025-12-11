@@ -66,6 +66,7 @@ public class ProcessUtils {
     /**
      * Executes a single command string via the system shell, with a default timeout of 10 seconds.
      * When no callbacks are provided, stdout and stderr are collected and truncated if too long.
+     * <p>Note: uses the platform shell (`cmd.exe` or `/bin/sh -c`); prefer {@link #runDirect(List)} for untrusted input.</p>
      *
      * @param command The command string to execute.
      * @return ProcessResult containing execution details.
@@ -100,6 +101,38 @@ public class ProcessUtils {
                 null,
                 null
         );
+    }
+
+    /**
+     * Executes a command without spawning a shell (arguments are passed directly).
+     * Default timeout: 10 seconds.
+     *
+     * @param command command and arguments (each element is one argument)
+     * @return ProcessResult containing execution details.
+     * @throws IOException          if an I/O error occurs.
+     * @throws InterruptedException if the current thread is interrupted while waiting.
+     * @throws ExecutionException   if reading output fails.
+     * @throws TimeoutException     if the command times out.
+     */
+    public static ProcessResult runDirect(List<String> command)
+            throws IOException, InterruptedException, ExecutionException, TimeoutException {
+        return run(command, Duration.ofSeconds(10), Charset.defaultCharset(), null, null);
+    }
+
+    /**
+     * Executes a command without spawning a shell (arguments are passed directly).
+     *
+     * @param command command and arguments (each element is one argument)
+     * @param timeout Maximum time to wait for process completion in seconds.
+     * @return ProcessResult containing execution details.
+     * @throws IOException          if an I/O error occurs.
+     * @throws InterruptedException if the current thread is interrupted while waiting.
+     * @throws ExecutionException   if reading output fails.
+     * @throws TimeoutException     if the command times out.
+     */
+    public static ProcessResult runDirect(List<String> command, long timeout)
+            throws IOException, InterruptedException, ExecutionException, TimeoutException {
+        return run(command, Duration.ofSeconds(timeout), Charset.defaultCharset(), null, null);
     }
 
 
