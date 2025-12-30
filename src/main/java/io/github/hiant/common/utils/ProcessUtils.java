@@ -20,6 +20,17 @@ import java.util.function.Consumer;
 /**
  * ProcessUtils provides a cross-platform, thread-safe utility to execute system commands.
  *
+ * <p><strong>Security Considerations:</strong>
+ * <ul>
+ *   <li>The {@link #run(String)} and {@link #run(String, long)} methods are <strong>deprecated</strong>
+ *       due to command injection vulnerabilities. They pass commands through a shell interpreter,
+ *       which can execute arbitrary commands if user input is not properly sanitized.</li>
+ *   <li>Always prefer {@link #runDirect(List)} or {@link #runDirect(List, long)} when executing
+ *       commands with untrusted input. These methods bypass shell interpretation.</li>
+ *   <li>The SHELL environment variable on Unix is validated against a whitelist of known safe shells
+ *       to prevent environment variable injection attacks.</li>
+ * </ul>
+ *
  * <p>Optimization notes:
  * <ul>
  *   <li>Thread pool uses CallerRunsPolicy to avoid task rejection under saturation.</li>
@@ -48,6 +59,13 @@ public class ProcessUtils {
     private static final int QUEUE_CAPACITY = 100;
     private static final int READ_TIMEOUT_DIVIDER = 5;
 
+    // Allowed shell paths on Unix systems to prevent environment variable injection attacks.
+    // If SHELL env var points to a malicious executable, it will be rejected.
+    private static final List<String> ALLOWED_UNIX_SHELLS = Arrays.asList(
+            "/bin/sh", "/bin/bash", "/bin/zsh", "/bin/dash", "/bin/ksh",
+            "/usr/bin/sh", "/usr/bin/bash", "/usr/bin/zsh", "/usr/bin/dash", "/usr/bin/ksh"
+    );
+
     private static final ThreadPoolExecutor EXECUTOR = ThreadUtils.newThreadPoolExecutor("ProcessUtils-Worker-", CORE_POOL_SIZE, MAX_POOL_SIZE, QUEUE_CAPACITY, 60, Thread.NORM_PRIORITY, true);
 
     static {
@@ -66,7 +84,14 @@ public class ProcessUtils {
     /**
      * Executes a single command string via the system shell, with a default timeout of 10 seconds.
      * When no callbacks are provided, stdout and stderr are collected and truncated if too long.
-     * <p>Note: uses the platform shell (`cmd.exe` or `/bin/sh -c`); prefer {@link #runDirect(List)} for untrusted input.</p>
+     *
+     * <p><strong>SECURITY WARNING:</strong> This method is vulnerable to command injection attacks.
+     * User-controlled input passed directly to this method can lead to arbitrary command execution.
+     * For example: {@code run("echo " + userInput)} where userInput is {@code "hello; rm -rf /"}
+     * will execute both commands.</p>
+     *
+     * <p>Use {@link #runDirect(List)} instead, which passes arguments directly to the process
+     * without shell interpretation, preventing command injection.</p>
      *
      * @param command The command string to execute.
      * @return ProcessResult containing execution details.
@@ -74,24 +99,32 @@ public class ProcessUtils {
      * @throws InterruptedException if the current thread is interrupted while waiting.
      * @throws ExecutionException   if reading output fails.
      * @throws TimeoutException     if the command times out.
+     * @deprecated Vulnerable to command injection. Use {@link #runDirect(List)} for untrusted input.
      */
+    @Deprecated
     public static ProcessResult run(String command)
             throws IOException, InterruptedException, ExecutionException, TimeoutException {
         return run(command, 10);
     }
 
     /**
-     * Executes a single command string via the system shell, with a default timeout of 10 seconds.
+     * Executes a single command string via the system shell with the specified timeout.
      * When no callbacks are provided, stdout and stderr are collected and truncated if too long.
      *
+     * <p><strong>SECURITY WARNING:</strong> This method is vulnerable to command injection attacks.
+     * User-controlled input passed directly to this method can lead to arbitrary command execution.
+     * Use {@link #runDirect(List, long)} instead for untrusted input.</p>
+     *
      * @param command The command string to execute.
-     * @param timeout Maximum time to wait for process completion.
+     * @param timeout Maximum time in seconds to wait for process completion.
      * @return ProcessResult containing execution details.
      * @throws IOException          if an I/O error occurs.
      * @throws InterruptedException if the current thread is interrupted while waiting.
      * @throws ExecutionException   if reading output fails.
      * @throws TimeoutException     if the command times out.
+     * @deprecated Vulnerable to command injection. Use {@link #runDirect(List, long)} for untrusted input.
      */
+    @Deprecated
     public static ProcessResult run(String command, long timeout)
             throws IOException, InterruptedException, ExecutionException, TimeoutException {
         return run(
@@ -245,10 +278,25 @@ public class ProcessUtils {
         }
     }
 
+    /**
+     * Resolves the shell executable path for the current platform.
+     * On Windows, always uses cmd.exe.
+     * On Unix, validates the SHELL environment variable against a whitelist
+     * to prevent environment variable injection attacks.
+     *
+     * @return the shell executable path
+     */
     private static String resolveShell() {
-        return isWindows()
-                ? "cmd.exe"
-                : System.getenv().getOrDefault("SHELL", "/bin/sh");
+        if (isWindows()) {
+            return "cmd.exe";
+        }
+        String shell = System.getenv().getOrDefault("SHELL", "/bin/sh");
+        // Validate shell path against whitelist to prevent env var injection
+        if (ALLOWED_UNIX_SHELLS.contains(shell)) {
+            return shell;
+        }
+        // Fall back to /bin/sh if SHELL env var is not in the allowed list
+        return "/bin/sh";
     }
 
     private static String resolveShellFlag() {
