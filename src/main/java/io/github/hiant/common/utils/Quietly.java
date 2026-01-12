@@ -10,7 +10,6 @@ import java.util.function.Consumer;
  * {@link Closeable} without throwing checked exceptions. It also allows executing
  * {@link Runnable} actions while optionally handling any thrown exceptions via a consumer.</p>
  *
- * @author liudong.work@gmail.com Created at: 2025/6/20 15:08
  */
 public class Quietly {
 

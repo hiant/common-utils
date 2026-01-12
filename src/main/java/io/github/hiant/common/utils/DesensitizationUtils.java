@@ -5,7 +5,9 @@ import lombok.Getter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
@@ -394,6 +396,36 @@ public final class DesensitizationUtils {
                ")";
     }
 
+    /**
+     * Desensitize email address.
+     * <p>
+     * Masks the local part of email while preserving domain.
+     * For local part: keeps first character and masks the rest.
+     * Example: "john.doe@example.com" -> "j****@example.com"
+     *
+     * @param email
+     *            Input email address
+     * @return Desensitized email address
+     * @throws IllegalArgumentException
+     *             If email is null or does not contain '@'
+     */
+    public static String desensitizeEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            throw new IllegalArgumentException("Invalid email format: must contain '@'");
+        }
+
+        int atIndex = email.indexOf('@');
+        String localPart = email.substring(0, atIndex);
+        String domain = email.substring(atIndex);
+
+        if (localPart.length() <= 1) {
+            return localPart + "****" + domain;
+        }
+
+        DesensitizeConfig config = DesensitizeConfig.defaults();
+        return localPart.charAt(0) + config.defaultPlaceholder + domain;
+    }
+
     // ================================================================================
     // General Desensitization APIs (Overloaded)
     // ================================================================================
@@ -510,6 +542,28 @@ public final class DesensitizationUtils {
     }
 
     /**
+     * Desensitize content for preset types without 60% mask ratio check.
+     * <p>
+     * Used by {@link DesensitizeType} for semantic desensitization (phone, ID card, etc.)
+     * where the retention lengths are predefined and validated.
+     *
+     * @param content
+     *            Input content to be desensitized
+     * @param keepPrefix
+     *            Number of prefix code points to retain (>= 0)
+     * @param keepSuffix
+     *            Number of suffix code points to retain (>= 0)
+     * @return Desensitized content (format: prefix + placeholder + suffix)
+     */
+    public static String desensitizeForPreset(String content, int keepPrefix, int keepSuffix) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+        DesensitizeConfig config = DesensitizeConfig.defaults();
+        return desensitizeInternal(content, keepPrefix, keepSuffix, config.defaultPlaceholder);
+    }
+
+    /**
      * Core desensitization logic with pre-computed totalCodePoints.
      * <p>
      * Avoids redundant codePointCount calculation. Called by both desensitize and desensitizeInternal.
@@ -574,6 +628,26 @@ public final class DesensitizationUtils {
                "(" +
                generateHash(content, hashAlgorithm, config) +
                ")";
+    }
+
+    /**
+     * General desensitization with default placeholder and MD5 hash for internal tracing.
+     * <p>
+     * Convenience overload using default configuration values.
+     *
+     * @param content
+     *            Input content to be desensitized
+     * @param keepPrefix
+     *            Number of prefix code points to retain (>= 0)
+     * @param keepSuffix
+     *            Number of suffix code points to retain (>= 0)
+     * @return Desensitized content with appended MD5 hash (format: prefix+placeholder+suffix(hash))
+     * @throws IllegalArgumentException
+     *             If input parameters are invalid
+     */
+    public static String desensitizeWithHash(String content, int keepPrefix, int keepSuffix) {
+        DesensitizeConfig config = DesensitizeConfig.defaults();
+        return desensitizeWithHash(content, keepPrefix, keepSuffix, config.defaultPlaceholder, HashAlgorithm.MD5);
     }
 
     // ================================================================================
@@ -749,4 +823,69 @@ public final class DesensitizationUtils {
 
         return hexBuilder.toString().toLowerCase();
     }
+
+    // ================================================================================
+    // Strategy-Based Desensitization Entry Point
+    // ================================================================================
+
+    /**
+     * Strategy-based desensitization with preset type and custom configuration.
+     * <p>
+     * Combines preset type defaults with optional custom prefix/suffix overrides.
+     * Supports optional hash appending for internal tracing.
+     * Uses deep copy to defend against concurrent/in-place modification risks.
+     *
+     * @param value
+     *            Original string value
+     * @param type
+     *            Preset desensitization type (defines default strategy and prefix/suffix)
+     * @param customPrefix
+     *            Custom prefix override (OptionalInt.empty() uses preset value)
+     * @param customSuffix
+     *            Custom suffix override (OptionalInt.empty() uses preset value)
+     * @param withHash
+     *            Whether to append hash (true: hash appended; false: placeholder only)
+     * @return Desensitized string
+     * @since JDK1.8
+     */
+    public static String strategyDesensitize(String value,
+                                             DesensitizeType type,
+                                             OptionalInt customPrefix,
+                                             OptionalInt customSuffix,
+                                             boolean withHash) {
+        if (isBlank(value)) {
+            return value;
+        }
+        // Deep copy for safety against concurrent modification
+        char[] rawChars = value.toCharArray();
+        char[] safeChars = Arrays.copyOf(rawChars, rawChars.length);
+        String safeValue = new String(safeChars);
+
+        // Determine final prefix/suffix: custom overrides preset
+        OptionalInt finalPrefix = customPrefix.isPresent() ? customPrefix : type.getDefaultPrefix();
+        OptionalInt finalSuffix = customSuffix.isPresent() ? customSuffix : type.getDefaultSuffix();
+
+        // Wrap strategy with hash if requested
+        DesensitizeStrategy finalStrategy = withHash ?
+                                                     (raw, p, s) -> {
+                                                         int prefix = p.orElse(0);
+                                                         int suffix = s.orElse(0);
+                                                         return desensitizeWithHash(raw, prefix, suffix);
+                                                     } :
+                                                     type.getStrategy();
+
+        return finalStrategy.mask(safeValue, finalPrefix, finalSuffix);
+    }
+
+    /**
+     * Check if a string is blank (null or empty).
+     *
+     * @param value
+     *            String value to check
+     * @return true if value is null or empty, false otherwise
+     */
+    private static boolean isBlank(String value) {
+        return value == null || "".equals(value);
+    }
+
 }
