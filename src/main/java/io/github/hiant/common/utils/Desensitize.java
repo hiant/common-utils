@@ -16,7 +16,7 @@ import java.lang.annotation.Target;
  * @see DesensitizeType
  * @see ToStringDesensitizeUtils
  */
-@Target(ElementType.FIELD)
+@Target({ ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER, ElementType.TYPE })
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface Desensitize {

@@ -26,7 +26,7 @@ public enum DesensitizeType {
     /**
      * Mobile phone number: preset prefix=3, suffix=4.
      * <p>
-     * Example: "13812345678" -> "138****5678"
+     * Example: "13812345678" becomes "138****5678"
      */
     MOBILE_PHONE((raw, prefix, suffix) -> {
         int p = prefix.orElse(3);
@@ -37,7 +37,7 @@ public enum DesensitizeType {
     /**
      * ID card number: preset prefix=6, suffix=4.
      * <p>
-     * Example: "110101199001011234" -> "110101****1234"
+     * Example: "110101199001011234" becomes "110101****1234"
      */
     ID_CARD((raw, prefix, suffix) -> {
         int p = prefix.orElse(6);
@@ -48,7 +48,7 @@ public enum DesensitizeType {
     /**
      * Person name: preset prefix=1, suffix=0.
      * <p>
-     * Example: "John Doe" -> "J****"
+     * Example: "John Doe" becomes "J****"
      */
     NAME((raw, prefix, suffix) -> {
         int p = prefix.orElse(1);
@@ -60,7 +60,7 @@ public enum DesensitizeType {
      * Email address: special strategy, ignores prefix/suffix settings.
      * <p>
      * Masks local part while preserving domain.
-     * Example: "john.doe@example.com" -> "j****@example.com"
+     * Example: "john.doe@example.com" becomes "j****@example.com"
      */
     EMAIL((raw, prefix, suffix) -> DesensitizationUtils.desensitizeEmail(raw), OptionalInt.empty(), OptionalInt.empty());
 

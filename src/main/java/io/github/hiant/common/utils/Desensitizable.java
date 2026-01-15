@@ -8,21 +8,21 @@ package io.github.hiant.common.utils;
  * in their {@code toString()} override.
  * <p>
  * <b>Usage:</b>
- * <pre>{@code
+ * <pre>
  * public class UserInfo implements Desensitizable {
  *
- *     @Desensitize(type = DesensitizeType.MOBILE_PHONE)
+ *     &#64;Desensitize(type = DesensitizeType.MOBILE_PHONE)
  *     private String phone;
  *
- *     @Desensitize(type = DesensitizeType.ID_CARD)
+ *     &#64;Desensitize(type = DesensitizeType.ID_CARD)
  *     private String idCard;
  *
- *     @Override
+ *     &#64;Override
  *     public String toString() {
  *         return toDesensitizedString();
  *     }
  * }
- * }</pre>
+ * </pre>
  * <p>
  * <b>Inheritance Support:</b>
  * <p>
@@ -41,7 +41,7 @@ public interface Desensitizable {
      * Generate a desensitized string representation of this object.
      * <p>
      * Fields annotated with {@link Desensitize} will be masked according to their configuration.
-     * Output format is compatible with Lombok's {@code @ToString}: {@code ClassName(field=value, ...)}
+     * Output format is compatible with Lombok's {@code @ToString}: ClassName(field=value, ...)
      *
      * @return desensitized string representation
      */

@@ -401,7 +401,7 @@ public final class DesensitizationUtils {
      * <p>
      * Masks the local part of email while preserving domain.
      * For local part: keeps first character and masks the rest.
-     * Example: "john.doe@example.com" -> "j****@example.com"
+     * Example: "john.doe@example.com" becomes "j****@example.com"
      *
      * @param email
      *            Input email address
@@ -550,9 +550,9 @@ public final class DesensitizationUtils {
      * @param content
      *            Input content to be desensitized
      * @param keepPrefix
-     *            Number of prefix code points to retain (>= 0)
+     *            Number of prefix code points to retain (non-negative)
      * @param keepSuffix
-     *            Number of suffix code points to retain (>= 0)
+     *            Number of suffix code points to retain (non-negative)
      * @return Desensitized content (format: prefix + placeholder + suffix)
      */
     public static String desensitizeForPreset(String content, int keepPrefix, int keepSuffix) {
@@ -638,9 +638,9 @@ public final class DesensitizationUtils {
      * @param content
      *            Input content to be desensitized
      * @param keepPrefix
-     *            Number of prefix code points to retain (>= 0)
+     *            Number of prefix code points to retain (non-negative)
      * @param keepSuffix
-     *            Number of suffix code points to retain (>= 0)
+     *            Number of suffix code points to retain (non-negative)
      * @return Desensitized content with appended MD5 hash (format: prefix+placeholder+suffix(hash))
      * @throws IllegalArgumentException
      *             If input parameters are invalid
