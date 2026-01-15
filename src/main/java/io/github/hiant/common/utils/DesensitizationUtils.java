@@ -263,12 +263,12 @@ public final class DesensitizationUtils {
     /**
      * Desensitize mainland China phone number (11 digits).
      * <p>
-     * Retains 3 prefix digits and 2 suffix digits with default placeholder.
+     * Retains 3 prefix digits and 4 suffix digits with default placeholder.
      * Uses precompiled regex for validation to optimize performance.
      *
      * @param phone
      *            Input mainland China phone number (11 digits, starts with 1)
-     * @return Desensitized phone number (format: 134****66)
+     * @return Desensitized phone number (format: 138****5678)
      * @throws IllegalArgumentException
      *             If phone number is null or does not match the pattern
      */
@@ -278,17 +278,17 @@ public final class DesensitizationUtils {
         }
 
         DesensitizeConfig config = DesensitizeConfig.defaults();
-        return desensitizeInternal(phone, 3, 2, config.defaultPlaceholder);
+        return desensitizeInternal(phone, 3, 4, config.defaultPlaceholder);
     }
 
     /**
      * Desensitize mainland China phone number with default MD5 hash.
      * <p>
-     * Retains 3 prefix digits and 2 suffix digits, appends MD5 hash for internal tracing.
+     * Retains 3 prefix digits and 4 suffix digits, appends MD5 hash for internal tracing.
      *
      * @param phone
      *            Input mainland China phone number (11 digits, starts with 1)
-     * @return Desensitized phone number with MD5 hash (format: 134****66(3e25960a...))
+     * @return Desensitized phone number with MD5 hash (format: 138****5678(3e25960a...))
      * @throws IllegalArgumentException
      *             If phone number is null or does not match the pattern
      */
@@ -297,18 +297,18 @@ public final class DesensitizationUtils {
     }
 
     /**
-     * Desensitize mainland China phone number with specified hash algorithm.
+     * Desensitize a mainland China mobile phone number with the specified hash algorithm.
      * <p>
-     * Retains 3 prefix digits and 2 suffix digits, appends specified hash/checksum for internal tracing.
-     * Prohibits CRC32/CRC16 for sensitive phone data to avoid security risks.
+     * Retains 3 prefix digits and 4 suffix digits, appends the specified cryptographic hash for internal tracing.
+     * CRC32/CRC16 are prohibited for phone numbers to avoid security risks and low collision resistance.
      *
      * @param phone
-     *            Input mainland China phone number (11 digits, starts with 1)
+     *            Input mainland China mobile phone number (11 digits, starts with 1)
      * @param hashAlgorithm
-     *            Specified hash/checksum algorithm
-     * @return Desensitized phone number with specified hash (format: 134****66(xxx...))
+     *            Hash algorithm (MD5/SHA-256). If null, defaults to MD5.
+     * @return Desensitized phone number with hash (format: 138****5678(xxx...))
      * @throws IllegalArgumentException
-     *             If phone number is invalid, algorithm is null, or CRC32/CRC16 is used
+     *             If phone number is invalid, or CRC32/CRC16 is used
      */
     public static String phoneWithHash(String phone, HashAlgorithm hashAlgorithm) {
         String desensitizedPhone = phone(phone);
@@ -829,6 +829,99 @@ public final class DesensitizationUtils {
     // ================================================================================
 
     /**
+     * Desensitize a value using a preset {@link DesensitizeType} resolved by name or alias.
+     * <p>
+     * The {@code typeName} is resolved by {@link DesensitizeType#fromName(String)} and supports:
+     * case-insensitive matching, underscore/dash/space separators, camel-case names, and configured aliases
+     * (e.g. {@code "MOBILE_PHONE"}, {@code "MobilePhone"}, {@code "msisdn"}).
+     * <p>
+     * Note: this is a strategy/preset entry point and therefore follows the same policy as
+     * {@link #strategyDesensitize(String, DesensitizeType, OptionalInt, OptionalInt, boolean)}:
+     * the mask-ratio constraint is enforced only when the corresponding system property is configured.
+     *
+     * @param typeName
+     *            Type name or alias (e.g. {@code "mobile_phone"}, {@code "msisdn"})
+     * @param value
+     *            Raw value to desensitize
+     * @return Desensitized value (or original when blank)
+     * @throws IllegalArgumentException
+     *             If {@code typeName} cannot be resolved to any {@link DesensitizeType}
+     */
+    public static String desensitize(String typeName, String value) {
+        return strategyDesensitize(value, parseDesensitizeType(typeName), OptionalInt.empty(), OptionalInt.empty(), false);
+    }
+
+    /**
+     * Desensitize a value using a preset {@link DesensitizeType} resolved by name or alias, with custom
+     * prefix/suffix overrides.
+     *
+     * @param typeName
+     *            Type name or alias (see {@link #desensitize(String, String)})
+     * @param value
+     *            Raw value to desensitize
+     * @param keepPrefix
+     *            Custom prefix code points to keep (non-negative)
+     * @param keepSuffix
+     *            Custom suffix code points to keep (non-negative)
+     * @return Desensitized value (or original when blank)
+     * @throws IllegalArgumentException
+     *             If {@code keepPrefix}/{@code keepSuffix} are negative, or {@code typeName} cannot be resolved
+     */
+    public static String desensitize(String typeName, String value, int keepPrefix, int keepSuffix) {
+        if (keepPrefix < 0) {
+            throw new IllegalArgumentException("keepPrefix cannot be negative: " + keepPrefix);
+        }
+        if (keepSuffix < 0) {
+            throw new IllegalArgumentException("keepSuffix cannot be negative: " + keepSuffix);
+        }
+        return strategyDesensitize(value, parseDesensitizeType(typeName), OptionalInt.of(keepPrefix), OptionalInt.of(keepSuffix), false);
+    }
+
+    /**
+     * Desensitize a value using a preset {@link DesensitizeType} resolved by name or alias, and append an MD5 hash
+     * for internal tracing.
+     * <p>
+     * This overload always appends an MD5 hash (lower-case hex, 32 chars). It is not intended for external display.
+     *
+     * @param typeName
+     *            Type name or alias (see {@link #desensitize(String, String)})
+     * @param value
+     *            Raw value to desensitize
+     * @return Desensitized value with appended hash (format: {@code masked(md5)})
+     * @throws IllegalArgumentException
+     *             If {@code typeName} cannot be resolved to any {@link DesensitizeType}
+     */
+    public static String desensitizeWithHash(String typeName, String value) {
+        return strategyDesensitize(value, parseDesensitizeType(typeName), OptionalInt.empty(), OptionalInt.empty(), true);
+    }
+
+    /**
+     * Desensitize a value using a preset {@link DesensitizeType} resolved by name or alias, with custom
+     * prefix/suffix overrides, and append an MD5 hash for internal tracing.
+     *
+     * @param typeName
+     *            Type name or alias (see {@link #desensitize(String, String)})
+     * @param value
+     *            Raw value to desensitize
+     * @param keepPrefix
+     *            Custom prefix code points to keep (non-negative)
+     * @param keepSuffix
+     *            Custom suffix code points to keep (non-negative)
+     * @return Desensitized value with appended hash (format: {@code masked(md5)})
+     * @throws IllegalArgumentException
+     *             If {@code keepPrefix}/{@code keepSuffix} are negative, or {@code typeName} cannot be resolved
+     */
+    public static String desensitizeWithHash(String typeName, String value, int keepPrefix, int keepSuffix) {
+        if (keepPrefix < 0) {
+            throw new IllegalArgumentException("keepPrefix cannot be negative: " + keepPrefix);
+        }
+        if (keepSuffix < 0) {
+            throw new IllegalArgumentException("keepSuffix cannot be negative: " + keepSuffix);
+        }
+        return strategyDesensitize(value, parseDesensitizeType(typeName), OptionalInt.of(keepPrefix), OptionalInt.of(keepSuffix), true);
+    }
+
+    /**
      * Strategy-based desensitization with preset type and custom configuration.
      * <p>
      * Combines preset type defaults with optional custom prefix/suffix overrides.
@@ -856,6 +949,8 @@ public final class DesensitizationUtils {
         if (isBlank(value)) {
             return value;
         }
+        Objects.requireNonNull(type, "DesensitizeType cannot be null");
+
         // Deep copy for safety against concurrent modification
         char[] rawChars = value.toCharArray();
         char[] safeChars = Arrays.copyOf(rawChars, rawChars.length);
@@ -864,25 +959,73 @@ public final class DesensitizationUtils {
         // Determine final prefix/suffix: custom overrides preset
         OptionalInt finalPrefix = customPrefix.isPresent() ? customPrefix : type.getDefaultPrefix();
         OptionalInt finalSuffix = customSuffix.isPresent() ? customSuffix : type.getDefaultSuffix();
+        int prefix = finalPrefix.orElse(0);
+        int suffix = finalSuffix.orElse(0);
 
-        // Wrap strategy with hash if requested
-        DesensitizeStrategy finalStrategy = withHash ?
-                                                     (raw, p, s) -> {
-                                                         int prefix = p.orElse(0);
-                                                         int suffix = s.orElse(0);
-                                                         return desensitizeWithHash(raw, prefix, suffix);
-                                                     } :
-                                                     type.getStrategy();
+        // Type-level dynamic mask-ratio policy: only validate when system property is configured.
+        type.getConfiguredMaskRatio().ifPresent(ratio -> validateMaskRatio(safeValue, prefix, suffix, ratio));
 
-        return finalStrategy.mask(safeValue, finalPrefix, finalSuffix);
+        if (withHash) {
+            DesensitizeConfig config = DesensitizeConfig.defaults();
+            String masked = desensitizeInternal(safeValue, prefix, suffix, config.defaultPlaceholder);
+            return masked + "(" + generateHash(safeValue, HashAlgorithm.MD5, config) + ")";
+        }
+
+        return type.getStrategy().mask(safeValue, finalPrefix, finalSuffix);
     }
 
     /**
-     * Check if a string is blank (null or empty).
+     * Validate that the mask area occupies at least the required ratio of the total code points.
+     * <p>
+     * This method is intended for preset/strategy entries where the ratio requirement may be configured per type.
+     * A non-positive {@code requiredMaskRatio} disables validation.
+     *
+     * @param content
+     *            Raw content (non-null)
+     * @param keepPrefix
+     *            Prefix code points to retain
+     * @param keepSuffix
+     *            Suffix code points to retain
+     * @param requiredMaskRatio
+     *            Required mask ratio in (0, 1], e.g. {@code 0.6} means "mask at least 60%"
+     * @throws IllegalArgumentException
+     *             If the mask ratio is insufficient
+     */
+    private static void validateMaskRatio(String content, int keepPrefix, int keepSuffix, double requiredMaskRatio) {
+        if (requiredMaskRatio <= 0.0) {
+            return;
+        }
+        int totalCodePoints = content.codePointCount(0, content.length());
+        if (keepPrefix + keepSuffix >= totalCodePoints) {
+            return;
+        }
+        int maskCodePoints = totalCodePoints - (keepPrefix + keepSuffix);
+        if (maskCodePoints < totalCodePoints * requiredMaskRatio) {
+            throw new IllegalArgumentException(
+                String.format("Mask area (%d) must be at least %.0f%% of total code points (%d) (required >= %d)",
+                    maskCodePoints, requiredMaskRatio * 100, totalCodePoints, (int) Math.ceil(totalCodePoints * requiredMaskRatio)));
+        }
+    }
+
+    /**
+     * Parse {@code typeName} into a {@link DesensitizeType}.
+     *
+     * @param typeName
+     *            Type name or alias
+     * @return Resolved {@link DesensitizeType}
+     * @throws IllegalArgumentException
+     *             If the name/alias cannot be resolved
+     */
+    private static DesensitizeType parseDesensitizeType(String typeName) {
+        return DesensitizeType.fromName(typeName);
+    }
+
+    /**
+     * Check whether a string is blank (null or empty).
      *
      * @param value
-     *            String value to check
-     * @return true if value is null or empty, false otherwise
+     *            Input value
+     * @return true if null or empty, false otherwise
      */
     private static boolean isBlank(String value) {
         return value == null || "".equals(value);

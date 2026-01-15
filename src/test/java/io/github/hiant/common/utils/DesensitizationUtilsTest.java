@@ -2,6 +2,7 @@ package io.github.hiant.common.utils;
 
 import org.junit.Test;
 
+import java.util.OptionalInt;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -23,16 +24,16 @@ public class DesensitizationUtilsTest {
     @Test
     public void testPhone_validPhone_shouldMaskMiddleDigits() {
         String result = DesensitizationUtils.phone("13812345678");
-        assertEquals("138****78", result);
+        assertEquals("138****5678", result);
     }
 
     @Test
     public void testPhone_differentPrefixes_shouldMaskCorrectly() {
         // Test various valid phone prefixes
-        assertEquals("139****56", DesensitizationUtils.phone("13912345656"));
-        assertEquals("150****99", DesensitizationUtils.phone("15000001199"));
-        assertEquals("188****00", DesensitizationUtils.phone("18888880000"));
-        assertEquals("199****11", DesensitizationUtils.phone("19999991111"));
+        assertEquals("139****5656", DesensitizationUtils.phone("13912345656"));
+        assertEquals("150****1199", DesensitizationUtils.phone("15000001199"));
+        assertEquals("188****0000", DesensitizationUtils.phone("18888880000"));
+        assertEquals("199****1111", DesensitizationUtils.phone("19999991111"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -67,7 +68,7 @@ public class DesensitizationUtilsTest {
     @Test
     public void testPhoneWithHash_defaultMD5_shouldAppendHash() {
         String result = DesensitizationUtils.phoneWithHash("13812345678");
-        assertTrue(result.startsWith("138****78("));
+        assertTrue(result.startsWith("138****5678("));
         assertTrue(result.endsWith(")"));
         // MD5 produces 32 hex characters
         String hash = result.substring(result.indexOf('(') + 1, result.indexOf(')'));
@@ -79,7 +80,7 @@ public class DesensitizationUtilsTest {
     public void testPhoneWithHash_sha256_shouldAppendLongerHash() {
         String result = DesensitizationUtils.phoneWithHash("13812345678",
                 DesensitizationUtils.HashAlgorithm.SHA_256);
-        assertTrue(result.startsWith("138****78("));
+        assertTrue(result.startsWith("138****5678("));
         // SHA-256 produces 64 hex characters
         String hash = result.substring(result.indexOf('(') + 1, result.indexOf(')'));
         assertEquals(64, hash.length());
@@ -237,8 +238,124 @@ public class DesensitizationUtilsTest {
     }
 
     // ================================================================================
+    // Type-Name Convenience API Tests
+    // ================================================================================
+
+    @Test
+    public void testDesensitize_typeNameIgnoreCaseAndUnderscore_shouldWork() {
+        String result = DesensitizationUtils.desensitize("mobile_phone", "13812345678");
+        assertEquals("138****5678", result);
+    }
+
+    @Test
+    public void testDesensitize_typeAliasMsisdn_shouldWork() {
+        String result = DesensitizationUtils.desensitize("msisdn", "13812345678");
+        assertEquals("138****5678", result);
+    }
+
+    @Test
+    public void testDesensitize_typeNameCamelCase_shouldWork() {
+        String result = DesensitizationUtils.desensitize("MobilePhone", "13812345678");
+        assertEquals("138****5678", result);
+    }
+
+    @Test
+    public void testDesensitize_typeNameDashAndTrim_shouldWork() {
+        String result = DesensitizationUtils.desensitize(" bank-card ", "6222021234567890");
+        assertEquals("622202****7890", result);
+    }
+
+    @Test
+    public void testDesensitizeWithHash_typeNameUnderscore_shouldWork() {
+        String result = DesensitizationUtils.desensitizeWithHash("id_card", "110101199001011234", 6, 4);
+        assertTrue(result.startsWith("110101****1234("));
+        assertTrue(result.endsWith(")"));
+        String hash = result.substring(result.indexOf('(') + 1, result.indexOf(')'));
+        assertEquals(32, hash.length());
+        assertTrue(hash.matches("[0-9a-f]+"));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testDesensitize_unknownType_shouldThrowException() {
+        DesensitizationUtils.desensitize("unknown_type", "any");
+    }
+
+    // ================================================================================
     // 60% Mask Ratio Security Constraint Tests
     // ================================================================================
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testDesensitize_phoneConvention_shouldStillBeBlockedByGlobalMaskRatio() {
+        // Global desensitize() keeps a fixed 60% constraint; CN mobile 3+4 masks only 4/11 (< 60%).
+        DesensitizationUtils.desensitize("13812345678", 3, 4);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testDesensitize_bankCardConvention_shouldStillBeBlockedByGlobalMaskRatio() {
+        // Global desensitize() keeps a fixed 60% constraint; bank card 6+4 masks 6/16 (=37.5% < 60%).
+        DesensitizationUtils.desensitize("6222021234567890", 6, 4);
+    }
+
+    @Test
+    public void testStrategyDesensitize_mobilePhone_noMaskRatioConfig_shouldNotValidate() {
+        // Type-based policy: when desensitize.maskRatio.<type> is NOT configured, do not validate.
+        System.clearProperty("desensitize.maskRatio.mobile_phone");
+        System.clearProperty("desensitize.maskRatio.MOBILE_PHONE");
+
+        String result = DesensitizationUtils.strategyDesensitize(
+                "13812345678",
+                DesensitizeType.MOBILE_PHONE,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                false
+        );
+        assertEquals("138****5678", result);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testStrategyDesensitize_mobilePhone_configuredMaskRatio_shouldValidateAndFail() {
+        // Configure a strict ratio; CN mobile 3+4 will fail.
+        System.setProperty("desensitize.maskRatio.mobile_phone", "0.6");
+        try {
+            DesensitizationUtils.strategyDesensitize(
+                    "13812345678",
+                    DesensitizeType.MOBILE_PHONE,
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    false
+            );
+        } finally {
+            System.clearProperty("desensitize.maskRatio.mobile_phone");
+        }
+    }
+
+    @Test
+    public void testDesensitizeType_bankCardStrategy_shouldWork() {
+        // Ensure the new BANK_CARD preset works end-to-end via strategy API.
+        String result = DesensitizationUtils.strategyDesensitize(
+                "6222021234567890",
+                DesensitizeType.BANK_CARD,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                false
+        );
+        assertEquals("622202****7890", result);
+    }
+
+    @Test
+    public void testStrategyDesensitize_mobilePhoneWithHash_shouldWorkWithoutGlobalMaskRatio() {
+        // strategyDesensitize(withHash) no longer delegates to general desensitize();
+        // it masks via preset (no 60% check) and then appends hash.
+        String result = DesensitizationUtils.strategyDesensitize(
+                "13812345678",
+                DesensitizeType.MOBILE_PHONE,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                true
+        );
+        assertTrue(result.startsWith("138****5678("));
+        assertTrue(result.endsWith(")"));
+    }
 
     @Test(expected = IllegalArgumentException.class)
     public void testDesensitize_insufficientMaskRatio_shouldThrowException() {
@@ -407,7 +524,7 @@ public class DesensitizationUtilsTest {
         final int threadCount = 10;
         final int iterationsPerThread = 100;
         final String testPhone = "13812345678";
-        final String expectedResult = "138****78";
+        final String expectedResult = "138****5678";
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         CountDownLatch latch = new CountDownLatch(threadCount);
@@ -479,7 +596,7 @@ public class DesensitizationUtilsTest {
 
         // Should still work after cleanup
         String result = DesensitizationUtils.phone("13812345678");
-        assertEquals("138****78", result);
+        assertEquals("138****5678", result);
     }
 
     // ================================================================================

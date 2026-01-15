@@ -1,5 +1,10 @@
 package io.github.hiant.common.utils;
 
+import lombok.Getter;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
 
 /**
@@ -12,6 +17,7 @@ import java.util.OptionalInt;
  * @see Desensitize
  * @see DesensitizeStrategy
  */
+@Getter
 public enum DesensitizeType {
 
     /**
@@ -32,7 +38,18 @@ public enum DesensitizeType {
         int p = prefix.orElse(3);
         int s = suffix.orElse(4);
         return DesensitizationUtils.desensitizeForPreset(raw, p, s);
-    }, OptionalInt.of(3), OptionalInt.of(4)),
+    }, OptionalInt.of(3), OptionalInt.of(4), "MSISDN", "PHONE_NO"),
+
+    /**
+     * Bank card number: preset prefix=6, suffix=4.
+     * <p>
+     * Example: "6222021234567890" becomes "622202****7890"
+     */
+    BANK_CARD((raw, prefix, suffix) -> {
+        int p = prefix.orElse(6);
+        int s = suffix.orElse(4);
+        return DesensitizationUtils.desensitizeForPreset(raw, p, s);
+    }, OptionalInt.of(6), OptionalInt.of(4)),
 
     /**
      * ID card number: preset prefix=6, suffix=4.
@@ -64,40 +81,127 @@ public enum DesensitizeType {
      */
     EMAIL((raw, prefix, suffix) -> DesensitizationUtils.desensitizeEmail(raw), OptionalInt.empty(), OptionalInt.empty());
 
+    private static final String                       SYS_PROP_MASK_RATIO_PREFIX = "desensitize.maskRatio.";
+
+    private static final Map<String, DesensitizeType> NAME_LOOKUP                = new HashMap<>();
+
+    static {
+        for (DesensitizeType type : values()) {
+            registerLookupKey(type.name(), type);
+            for (String alias : type.aliases) {
+                registerLookupKey(alias, type);
+            }
+        }
+    }
+
     private final DesensitizeStrategy strategy;
     private final OptionalInt         defaultPrefix;
     private final OptionalInt         defaultSuffix;
+    private final String[]            aliases;
 
-    DesensitizeType(DesensitizeStrategy strategy, OptionalInt defaultPrefix, OptionalInt defaultSuffix) {
+    DesensitizeType(DesensitizeStrategy strategy,
+                    OptionalInt defaultPrefix,
+                    OptionalInt defaultSuffix,
+                    String... aliases) {
         this.strategy = strategy;
         this.defaultPrefix = defaultPrefix;
         this.defaultSuffix = defaultSuffix;
+        this.aliases = aliases == null ? new String[0] : aliases.clone();
     }
 
     /**
-     * Get the desensitization strategy for this type.
-     *
-     * @return the desensitization strategy
+     * Type-level configured required mask ratio.
+     * Returns empty when no system property is configured (meaning: do not validate mask ratio).
      */
-    public DesensitizeStrategy getStrategy() {
-        return strategy;
+    public OptionalDouble getConfiguredMaskRatio() {
+        String keyLower = SYS_PROP_MASK_RATIO_PREFIX + name().toLowerCase();
+        String keyUpper = SYS_PROP_MASK_RATIO_PREFIX + name();
+        String value = System.getProperty(keyLower);
+        if (value == null) {
+            value = System.getProperty(keyUpper);
+        }
+        if (value == null || value.trim().isEmpty()) {
+            return OptionalDouble.empty();
+        }
+        try {
+            return OptionalDouble.of(sanitizeMaskRatio(Double.parseDouble(value.trim())));
+        } catch (NumberFormatException ignored) {
+            return OptionalDouble.empty();
+        }
     }
 
-    /**
-     * Get the default prefix length for this type.
-     *
-     * @return the default prefix length, or empty if not preset
-     */
-    public OptionalInt getDefaultPrefix() {
-        return defaultPrefix;
+    public static DesensitizeType fromName(String nameOrAlias) {
+        if (nameOrAlias == null) {
+            throw new IllegalArgumentException("typeName cannot be null");
+        }
+        String normalized = normalizeLookupKey(nameOrAlias);
+        DesensitizeType type = NAME_LOOKUP.get(normalized);
+        if (type == null) {
+            throw new IllegalArgumentException("Unknown desensitize type: " + nameOrAlias);
+        }
+        return type;
     }
 
-    /**
-     * Get the default suffix length for this type.
-     *
-     * @return the default suffix length, or empty if not preset
-     */
-    public OptionalInt getDefaultSuffix() {
-        return defaultSuffix;
+    private static void registerLookupKey(String key, DesensitizeType type) {
+        if (key == null) {
+            return;
+        }
+        String normalized = normalizeLookupKey(key);
+        if (!normalized.isEmpty()) {
+            NAME_LOOKUP.putIfAbsent(normalized, type);
+        }
+    }
+
+    private static String normalizeLookupKey(String raw) {
+        String s = raw.trim();
+        if (s.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder normalized = new StringBuilder(s.length());
+        char prev = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+
+            if (c == '-' || c == ' ') {
+                c = '_';
+            }
+
+            if (c == '_') {
+                if (normalized.length() == 0 || normalized.charAt(normalized.length() - 1) == '_') {
+                    prev = c;
+                    continue;
+                }
+                normalized.append('_');
+                prev = c;
+                continue;
+            }
+
+            if (Character.isUpperCase(c) && normalized.length() > 0 && (Character.isLowerCase(prev) || Character.isDigit(prev))) {
+                normalized.append('_');
+            }
+
+            normalized.append(Character.toUpperCase(c));
+            prev = c;
+        }
+
+        int len = normalized.length();
+        if (len > 0 && normalized.charAt(len - 1) == '_') {
+            normalized.setLength(len - 1);
+        }
+        return normalized.toString();
+    }
+
+    private static double sanitizeMaskRatio(double ratio) {
+        if (Double.isNaN(ratio) || Double.isInfinite(ratio)) {
+            return 0.0;
+        }
+        if (ratio < 0.0) {
+            return 0.0;
+        }
+        if (ratio > 1.0) {
+            return 1.0;
+        }
+        return ratio;
     }
 }
