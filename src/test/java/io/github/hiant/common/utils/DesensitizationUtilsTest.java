@@ -1,5 +1,6 @@
 package io.github.hiant.common.utils;
 
+import org.junit.After;
 import org.junit.Test;
 
 import java.util.OptionalInt;
@@ -16,6 +17,14 @@ import static org.junit.Assert.*;
  * hash algorithms, edge cases, security constraints, and concurrency.
  */
 public class DesensitizationUtilsTest {
+
+    @After
+    public void tearDown() {
+        // Prevent system-property leakage across tests (JUnit does not guarantee test order).
+        System.clearProperty("desensitize.maskRatio.default");
+        System.clearProperty("desensitize.maskRatio.mobile_phone");
+        System.clearProperty("desensitize.maskRatio.MOBILE_PHONE");
+    }
 
     // ================================================================================
     // Phone Number Desensitization Tests
@@ -281,27 +290,40 @@ public class DesensitizationUtilsTest {
     }
 
     // ================================================================================
-    // 60% Mask Ratio Security Constraint Tests
+    // Mask-Ratio Policy Tests
     // ================================================================================
 
+    @Test
+    public void testDesensitize_defaultMaskRatio_shouldNotValidate_phoneConventionShouldPass() {
+        // Default policy: do NOT validate mask ratio unless desensitize.maskRatio.default is configured.
+        String result = DesensitizationUtils.desensitize("13812345678", 3, 4);
+        assertEquals("138****5678", result);
+    }
+
+    @Test
+    public void testDesensitize_defaultMaskRatio_shouldNotValidate_bankCardConventionShouldPass() {
+        // Default policy: do NOT validate mask ratio unless desensitize.maskRatio.default is configured.
+        String result = DesensitizationUtils.desensitize("6222021234567890", 6, 4);
+        assertEquals("622202****7890", result);
+    }
+
     @Test(expected = IllegalArgumentException.class)
-    public void testDesensitize_phoneConvention_shouldStillBeBlockedByGlobalMaskRatio() {
-        // Global desensitize() keeps a fixed 60% constraint; CN mobile 3+4 masks only 4/11 (< 60%).
+    public void testDesensitize_configuredDefaultMaskRatio_shouldValidateAndFail_phoneConvention() {
+        // Configure a strict ratio; CN mobile 3+4 masks only 4/11 (< 60%), should fail.
+        System.setProperty("desensitize.maskRatio.default", "0.6");
         DesensitizationUtils.desensitize("13812345678", 3, 4);
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testDesensitize_bankCardConvention_shouldStillBeBlockedByGlobalMaskRatio() {
-        // Global desensitize() keeps a fixed 60% constraint; bank card 6+4 masks 6/16 (=37.5% < 60%).
-        DesensitizationUtils.desensitize("6222021234567890", 6, 4);
+    public void testDesensitize_configuredDefaultMaskRatio_shouldValidateAndFail_insufficientMaskArea() {
+        // 10 characters, keep 3+3=6, mask=4 (40% < 60%).
+        System.setProperty("desensitize.maskRatio.default", "0.6");
+        DesensitizationUtils.desensitize("ABCDEFGHIJ", 3, 3);
     }
 
     @Test
     public void testStrategyDesensitize_mobilePhone_noMaskRatioConfig_shouldNotValidate() {
         // Type-based policy: when desensitize.maskRatio.<type> is NOT configured, do not validate.
-        System.clearProperty("desensitize.maskRatio.mobile_phone");
-        System.clearProperty("desensitize.maskRatio.MOBILE_PHONE");
-
         String result = DesensitizationUtils.strategyDesensitize(
                 "13812345678",
                 DesensitizeType.MOBILE_PHONE,
@@ -316,22 +338,18 @@ public class DesensitizationUtilsTest {
     public void testStrategyDesensitize_mobilePhone_configuredMaskRatio_shouldValidateAndFail() {
         // Configure a strict ratio; CN mobile 3+4 will fail.
         System.setProperty("desensitize.maskRatio.mobile_phone", "0.6");
-        try {
-            DesensitizationUtils.strategyDesensitize(
-                    "13812345678",
-                    DesensitizeType.MOBILE_PHONE,
-                    OptionalInt.empty(),
-                    OptionalInt.empty(),
-                    false
-            );
-        } finally {
-            System.clearProperty("desensitize.maskRatio.mobile_phone");
-        }
+        DesensitizationUtils.strategyDesensitize(
+                "13812345678",
+                DesensitizeType.MOBILE_PHONE,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                false
+        );
     }
 
     @Test
     public void testDesensitizeType_bankCardStrategy_shouldWork() {
-        // Ensure the new BANK_CARD preset works end-to-end via strategy API.
+        // Ensure the BANK_CARD preset works end-to-end via strategy API.
         String result = DesensitizationUtils.strategyDesensitize(
                 "6222021234567890",
                 DesensitizeType.BANK_CARD,
@@ -343,9 +361,8 @@ public class DesensitizationUtilsTest {
     }
 
     @Test
-    public void testStrategyDesensitize_mobilePhoneWithHash_shouldWorkWithoutGlobalMaskRatio() {
-        // strategyDesensitize(withHash) no longer delegates to general desensitize();
-        // it masks via preset (no 60% check) and then appends hash.
+    public void testStrategyDesensitize_mobilePhoneWithHash_shouldWorkWithoutDefaultMaskRatio() {
+        // strategyDesensitize(withHash) masks via preset and then appends hash; default mask-ratio validation is disabled.
         String result = DesensitizationUtils.strategyDesensitize(
                 "13812345678",
                 DesensitizeType.MOBILE_PHONE,
@@ -357,22 +374,18 @@ public class DesensitizationUtilsTest {
         assertTrue(result.endsWith(")"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void testDesensitize_insufficientMaskRatio_shouldThrowException() {
-        // 10 characters, keep 3+3=6, mask=4 (40% < 60%)
-        DesensitizationUtils.desensitize("ABCDEFGHIJ", 3, 3);
-    }
-
     @Test
-    public void testDesensitize_exactlyMinimumMaskRatio_shouldWork() {
-        // 10 characters, keep 2+2=4, mask=6 (60% = 60%)
+    public void testDesensitize_configuredDefaultMaskRatio_shouldValidateAndPass_atBoundary() {
+        // 10 characters, keep 2+2=4, mask=6 (60% = 60%), should pass.
+        System.setProperty("desensitize.maskRatio.default", "0.6");
         String result = DesensitizationUtils.desensitize("ABCDEFGHIJ", 2, 2);
         assertEquals("AB****IJ", result);
     }
 
     @Test
-    public void testDesensitize_exceedsMinimumMaskRatio_shouldWork() {
-        // 10 characters, keep 1+1=2, mask=8 (80% > 60%)
+    public void testDesensitize_configuredDefaultMaskRatio_shouldValidateAndPass_exceeds() {
+        // 10 characters, keep 1+1=2, mask=8 (80% > 60%), should pass.
+        System.setProperty("desensitize.maskRatio.default", "0.6");
         String result = DesensitizationUtils.desensitize("ABCDEFGHIJ", 1, 1);
         assertEquals("A****J", result);
     }

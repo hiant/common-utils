@@ -33,6 +33,14 @@ public final class DesensitizationUtils {
      */
     private static final Pattern BANK_CARD_PATTERN = Pattern.compile("^\\d{16,19}$");
 
+    /**
+     * System property key for the default mask ratio used by {@link #desensitize(String, int, int, String)}.
+     * <p>
+     * If not configured (or configured to a non-positive value), the mask-ratio validation is disabled.
+     * Example: {@code -Ddesensitize.maskRatio.default=0.6}
+     */
+    private static final String  SYS_PROP_MASK_RATIO_DEFAULT = "desensitize.maskRatio.default";
+
     // Private constructor to prevent instantiation
     private DesensitizationUtils() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
@@ -466,7 +474,11 @@ public final class DesensitizationUtils {
      * Core general desensitization method with full custom parameters.
      * <p>
      * Uses code point counting to handle emojis and multi-byte characters correctly.
-     * Ensures mask area accounts for at least 60% of the total length to reduce brute force risks.
+     * <p>
+     * Mask-ratio validation is configurable and disabled by default:
+     * when the system property {@code desensitize.maskRatio.default} is configured to a positive number,
+     * the masked area must occupy at least that ratio of the total code points. When not configured (or configured
+     * to a non-positive / invalid value), no mask-ratio validation is performed.
      *
      * @param content
      *            Input content to be desensitized
@@ -478,7 +490,7 @@ public final class DesensitizationUtils {
      *            Placeholder string for masked area
      * @return Desensitized content (format: prefix + placeholder + suffix)
      * @throws IllegalArgumentException
-     *             If content is null, retention lengths are negative, or mask ratio is insufficient
+     *             If retention lengths are negative, or the configured mask ratio is insufficient
      */
     public static String desensitize(String content, int keepPrefix, int keepSuffix, String placeholder) {
         // Input validation (fail-fast)
@@ -500,15 +512,9 @@ public final class DesensitizationUtils {
             return content;
         }
 
-        // Ensure mask area accounts for at least 60% of total length
-        int maskCodePoints = totalCodePoints - (keepPrefix + keepSuffix);
-        double requiredMaskRatio = 0.6;
-
-        if (maskCodePoints < totalCodePoints * requiredMaskRatio) {
-            throw new IllegalArgumentException(
-                String.format("Mask area (%d) must be at least %.0f%% of total code points (%d) (required >= %d)",
-                    maskCodePoints, requiredMaskRatio * 100, totalCodePoints, (int) Math.ceil(totalCodePoints * requiredMaskRatio)));
-        }
+        // Validate mask ratio only when configured (disabled by default)
+        double requiredMaskRatio = parseMaskRatio(System.getProperty(SYS_PROP_MASK_RATIO_DEFAULT));
+        validateMaskRatio(content, keepPrefix, keepSuffix, requiredMaskRatio);
 
         // Delegate to core method with pre-computed totalCodePoints
         return desensitizeCore(content, keepPrefix, keepSuffix, placeholder, totalCodePoints);
@@ -975,9 +981,40 @@ public final class DesensitizationUtils {
     }
 
     /**
+     * Parse a mask ratio configuration value.
+     * <p>
+     * Returns {@code 0.0} when the input is null/blank/invalid or non-positive, which effectively disables validation.
+     * Values greater than {@code 1.0} are clamped to {@code 1.0}.
+     *
+     * @param ratioValue
+     *            Raw ratio value (e.g. {@code "0.6"})
+     * @return Parsed ratio in {@code [0.0, 1.0]}
+     */
+    private static double parseMaskRatio(String ratioValue) {
+        if (ratioValue == null) {
+            return 0.0;
+        }
+        String trimmed = ratioValue.trim();
+        if (trimmed.isEmpty()) {
+            return 0.0;
+        }
+        try {
+            double ratio = Double.parseDouble(trimmed);
+            if (ratio <= 0.0) {
+                return 0.0;
+            }
+            if (ratio > 1.0) {
+                return 1.0;
+            }
+            return ratio;
+        } catch (NumberFormatException ignored) {
+            return 0.0;
+        }
+    }
+
+    /**
      * Validate that the mask area occupies at least the required ratio of the total code points.
      * <p>
-     * This method is intended for preset/strategy entries where the ratio requirement may be configured per type.
      * A non-positive {@code requiredMaskRatio} disables validation.
      *
      * @param content
