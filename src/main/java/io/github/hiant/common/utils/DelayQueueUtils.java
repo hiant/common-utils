@@ -35,6 +35,7 @@ public class DelayQueueUtils {
      *
      * @param queue           The DelayQueue instance to modify (must not be null)
      * @param initialCapacity The new initial capacity for the PriorityQueue
+     * @param <T>             the type of elements held in the queue
      * @return The modified DelayQueue with updated internal PriorityQueue
      * @throws RuntimeException if reflection operations fail
      */

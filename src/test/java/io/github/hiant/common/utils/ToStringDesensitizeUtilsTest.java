@@ -60,6 +60,18 @@ public class ToStringDesensitizeUtilsTest {
     }
 
     /**
+     * Entity with encryption enabled.
+     */
+    static class EncryptedInfo {
+        @Desensitize(action = DesensitizeAction.ENCRYPT)
+        private String secret;
+
+        public EncryptedInfo(String secret) {
+            this.secret = secret;
+        }
+    }
+
+    /**
      * Entity with no annotations.
      */
     static class PlainInfo {
@@ -146,6 +158,41 @@ public class ToStringDesensitizeUtilsTest {
         String result = ToStringDesensitizeUtils.toDesensitizeString(user);
 
         assertTrue("Should contain empty phone", result.contains("phone="));
+    }
+
+    @Test
+    public void testToDesensitizeString_encryptAction_rendersEncFormat_andCanDecrypt() {
+        // Inject a deterministic provider for testing
+        DesensitizeCryptoProviders.setProvider(new DesensitizeCryptoProvider() {
+            @Override
+            public String defaultKeyId() {
+                return "default";
+            }
+
+            @Override
+            public byte[] findAesKey(String keyId) {
+                // 16 bytes (AES-128) test key
+                return "0123456789abcdef".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        });
+
+        EncryptedInfo info = new EncryptedInfo("top-secret");
+        String result = ToStringDesensitizeUtils.toDesensitizeString(info);
+
+        assertTrue("Should contain ENC prefix", result.contains("secret=ENC["));
+        assertTrue("Should contain AESGCM header", result.contains("alg=AESGCM]::"));
+
+        // Extract ciphertext and verify it can be decrypted
+        int start = result.indexOf("secret=") + "secret=".length();
+        int end = result.lastIndexOf(")");
+        String enc = result.substring(start, end);
+
+        byte[] aad = DesensitizeCryptoUtils.toStringAad(EncryptedInfo.class, "secret");
+        String plain = DesensitizeCryptoUtils.decryptFromToString(enc, aad);
+        assertEquals("top-secret", plain);
+
+        // Reset provider to avoid leaking state across tests
+        DesensitizeCryptoProviders.setProvider(null);
     }
 
     // ================================================================================

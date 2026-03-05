@@ -268,11 +268,15 @@ public final class KeyUtils {
     /**
      * Convenience overload using a {@link String} path.
      *
+     * @param key      the key to save (public or private)
+     * @param filePath destination file
+     * @param pem      {@code true} → PEM; {@code false} → raw Base64
+     * @throws IOException on I/O failure
      * @see #saveKeyToFile(Key, Path, boolean)
      */
     public static void saveKeyToFile(Key key, String filePath, boolean pem) throws IOException {
-        saveKeyToFile(key, Paths.get(filePath), pem);
-    }
+         saveKeyToFile(key, Paths.get(filePath), pem);
+     }
 
     /* ---------------------------------------------------------------------- */
     /* --------------------- Encrypted Private Key --------------------------- */
@@ -326,12 +330,17 @@ public final class KeyUtils {
     /**
      * Encrypts and saves using {@link PBEConfig#DEFAULT}.
      *
+     * @param privateKey private key to encrypt
+     * @param path       destination file (PEM format)
+     * @param password   password char array – will be cleared on return
+     * @throws GeneralSecurityException on cryptographic failure
+     * @throws IOException              on I/O failure
      * @see #saveEncryptedPrivateKey(PrivateKey, Path, char[], PBEConfig)
      */
     public static void saveEncryptedPrivateKey(PrivateKey privateKey, Path path, char[] password)
             throws GeneralSecurityException, IOException {
-        saveEncryptedPrivateKey(privateKey, path, password, PBEConfig.DEFAULT);
-    }
+         saveEncryptedPrivateKey(privateKey, path, password, PBEConfig.DEFAULT);
+     }
 
     /* ---------------------------------------------------------------------- */
     /* ---------------------------- Load Key -------------------------------- */

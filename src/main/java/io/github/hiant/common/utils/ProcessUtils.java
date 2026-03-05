@@ -333,6 +333,8 @@ public class ProcessUtils {
 
         /**
          * Returns true if the process exited with code 0.
+         *
+         * @return true when exit code is 0
          */
         public boolean isSuccess() {
             return exitCode == 0;

@@ -44,6 +44,8 @@ public final class RadixUtils {
 
     /**
      * Return an immutable copy of the desired charset.
+     *
+     * @return a copy of the alphabet charset
      */
     public static char[] alphabet() {
         return ALPHABET26_ARR.clone();

@@ -305,6 +305,7 @@ public class ThreadUtils {
      * Wraps a Callable to preserve MDC context and inject trace ID.
      *
      * @param callable the original callable
+     * @param <T>      return type
      * @return a wrapped callable that preserves MDC context
      */
     public static <T> Callable<T> wrap(final Callable<T> callable) {
@@ -351,6 +352,7 @@ public class ThreadUtils {
      * @param executorService the executor service to use
      * @param task            the task to submit
      * @param result          the result to return upon successful completion
+     * @param <T>             result type
      * @return a Future representing pending completion of the task
      */
     public static <T> Future<T> submit(ExecutorService executorService, Runnable task, T result) {
@@ -362,6 +364,7 @@ public class ThreadUtils {
      *
      * @param executorService the executor service to use
      * @param task            the task to submit
+     * @param <T>             result type
      * @return a Future representing pending completion of the task
      */
     public static <T> Future<T> submit(ExecutorService executorService, Callable<T> task) {

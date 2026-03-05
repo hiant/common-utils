@@ -3,6 +3,7 @@ package io.github.hiant.common.utils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedWriter;
@@ -36,6 +37,141 @@ public class CipherUtils {
      * AES encryption mode with CBC and PKCS5 padding.
      */
     private static final String AES_CBC_PKCS5PADDING = "AES/CBC/PKCS5Padding";
+
+    /**
+     * AES encryption mode with GCM and no padding.
+     * <p>
+     * GCM provides confidentiality and integrity (authenticated encryption).
+     */
+    private static final String AES_GCM_NOPADDING = "AES/GCM/NoPadding";
+
+    /**
+     * Recommended nonce length for AES-GCM.
+     */
+    private static final int GCM_NONCE_LENGTH_BYTES = 12;
+
+    /**
+     * Authentication tag length for AES-GCM (in bits).
+     */
+    private static final int GCM_TAG_LENGTH_BITS = 128;
+
+    /**
+     * Encrypt plaintext using AES/GCM/NoPadding.
+     * <p>
+     * The return value is Base64(nonce || ciphertext+tag). The nonce is randomly generated for each call.
+     * <p>
+     * This method is intended as a cryptographic primitive. Higher-level features (like embedding key id or
+     * version headers) should be implemented at a separate layer.
+     *
+     * @param content plaintext
+     * @param aesKey  raw AES key bytes (16/24/32 bytes)
+     * @return Base64 encoded payload (nonce || ciphertext+tag)
+     */
+    public static String encryptWithAESGCM(String content, byte[] aesKey) {
+        return encryptWithAESGCM(content, aesKey, null);
+    }
+
+    /**
+     * Encrypt plaintext using AES/GCM/NoPadding with optional AAD.
+     * <p>
+     * The return value is Base64(nonce || ciphertext+tag). The nonce is randomly generated for each call.
+     *
+     * @param content plaintext
+     * @param aesKey  raw AES key bytes (16/24/32 bytes)
+     * @param aad     additional authenticated data (optional)
+     * @return Base64 encoded payload (nonce || ciphertext+tag)
+     */
+    public static String encryptWithAESGCM(String content, byte[] aesKey, byte[] aad) {
+        if (content == null) {
+            return null;
+        }
+        if (aesKey == null || !(aesKey.length == 16 || aesKey.length == 24 || aesKey.length == 32)) {
+            throw new IllegalArgumentException("Invalid AES key length: expected 16/24/32 bytes");
+        }
+
+        try {
+            byte[] nonce = new byte[GCM_NONCE_LENGTH_BYTES];
+            SecureRandom random = new SecureRandom();
+            random.nextBytes(nonce);
+
+            SecretKeySpec key = new SecretKeySpec(aesKey, AES_ALGORITHM);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
+
+            Cipher cipher = Cipher.getInstance(AES_GCM_NOPADDING);
+            cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+            if (aad != null && aad.length > 0) {
+                cipher.updateAAD(aad);
+            }
+
+            byte[] cipherBytes = cipher.doFinal(content.getBytes(StandardCharsets.UTF_8));
+
+            byte[] payload = new byte[nonce.length + cipherBytes.length];
+            System.arraycopy(nonce, 0, payload, 0, nonce.length);
+            System.arraycopy(cipherBytes, 0, payload, nonce.length, cipherBytes.length);
+
+            return Base64.getEncoder().encodeToString(payload);
+        } catch (Exception e) {
+            log.error("AES-GCM encryption failed: ", e);
+            return null;
+        }
+    }
+
+    /**
+     * Decrypt ciphertext using AES/GCM/NoPadding.
+     * <p>
+     * The input must be Base64(nonce || ciphertext+tag), where nonce is 12 bytes.
+     *
+     * @param base64Payload Base64 encoded payload (nonce || ciphertext+tag)
+     * @param aesKey        raw AES key bytes (16/24/32 bytes)
+     * @return plaintext, or null if decryption fails
+     */
+    public static String decryptWithAESGCM(String base64Payload, byte[] aesKey) {
+        return decryptWithAESGCM(base64Payload, aesKey, null);
+    }
+
+    /**
+     * Decrypt ciphertext using AES/GCM/NoPadding with optional AAD.
+     *
+     * @param base64Payload Base64 encoded payload (nonce || ciphertext+tag)
+     * @param aesKey        raw AES key bytes (16/24/32 bytes)
+     * @param aad           additional authenticated data (optional)
+     * @return plaintext, or null if decryption fails
+     */
+    public static String decryptWithAESGCM(String base64Payload, byte[] aesKey, byte[] aad) {
+        if (base64Payload == null) {
+            return null;
+        }
+        if (aesKey == null || !(aesKey.length == 16 || aesKey.length == 24 || aesKey.length == 32)) {
+            throw new IllegalArgumentException("Invalid AES key length: expected 16/24/32 bytes");
+        }
+
+        try {
+            byte[] payload = Base64.getDecoder().decode(base64Payload);
+            if (payload.length <= GCM_NONCE_LENGTH_BYTES) {
+                return null;
+            }
+
+            byte[] nonce = new byte[GCM_NONCE_LENGTH_BYTES];
+            byte[] cipherBytes = new byte[payload.length - GCM_NONCE_LENGTH_BYTES];
+            System.arraycopy(payload, 0, nonce, 0, nonce.length);
+            System.arraycopy(payload, nonce.length, cipherBytes, 0, cipherBytes.length);
+
+            SecretKeySpec key = new SecretKeySpec(aesKey, AES_ALGORITHM);
+            GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH_BITS, nonce);
+
+            Cipher cipher = Cipher.getInstance(AES_GCM_NOPADDING);
+            cipher.init(Cipher.DECRYPT_MODE, key, spec);
+            if (aad != null && aad.length > 0) {
+                cipher.updateAAD(aad);
+            }
+
+            byte[] plainBytes = cipher.doFinal(cipherBytes);
+            return new String(plainBytes, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.error("AES-GCM decryption failed: ", e);
+            return null;
+        }
+    }
 
     /**
      * DES encryption mode with CBC and PKCS5 padding.

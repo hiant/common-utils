@@ -112,6 +112,8 @@ public enum DesensitizeType {
     /**
      * Type-level configured required mask ratio.
      * Returns empty when no system property is configured (meaning: do not validate mask ratio).
+     *
+     * @return configured mask ratio, or empty if not configured/invalid
      */
     public OptionalDouble getConfiguredMaskRatio() {
         String keyLower = SYS_PROP_MASK_RATIO_PREFIX + name().toLowerCase();

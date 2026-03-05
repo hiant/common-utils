@@ -77,7 +77,7 @@ public class ToStringDesensitizeUtils {
                 Object fieldValue = meta.field.get(obj);
 
                 if (meta.annotation != null && fieldValue instanceof String) {
-                    fieldValue = processDesensitization((String) fieldValue, meta.annotation);
+                    fieldValue = processDesensitization((String) fieldValue, meta.annotation, meta.declaringClass, fieldName);
                 }
 
                 sb.append(fieldName).append("=").append(fieldValue);
@@ -123,16 +123,36 @@ public class ToStringDesensitizeUtils {
         return allFields;
     }
 
-    private static String processDesensitization(String rawValue, Desensitize annotation) {
+    private static String processDesensitization(String rawValue,
+                                                 Desensitize annotation,
+                                                 Class<?> declaringClass,
+                                                 String fieldName) {
         if (rawValue == null || rawValue.isEmpty()) {
             return rawValue;
         }
 
+        DesensitizeAction action = annotation.action();
+        if (action == null) {
+            action = DesensitizeAction.MASK;
+        }
+
+        switch (action) {
+            case ENCRYPT:
+                // Bind ciphertext to a specific field name (optional but recommended)
+                byte[] aad = DesensitizeCryptoUtils.toStringAad(declaringClass, fieldName);
+                return DesensitizeCryptoUtils.encryptForToString(rawValue, annotation.keyId(), aad);
+            case MASK_WITH_HASH:
+                return mask(rawValue, annotation, true);
+            case MASK:
+            default:
+                return mask(rawValue, annotation, annotation.withHash());
+        }
+    }
+
+    private static String mask(String rawValue, Desensitize annotation, boolean withHash) {
         DesensitizeType type = annotation.type();
         OptionalInt customPrefix = annotation.keepPrefix() != -1 ? OptionalInt.of(annotation.keepPrefix()) : OptionalInt.empty();
         OptionalInt customSuffix = annotation.keepSuffix() != -1 ? OptionalInt.of(annotation.keepSuffix()) : OptionalInt.empty();
-        boolean withHash = annotation.withHash();
-
         return DesensitizationUtils.strategyDesensitize(rawValue, type, customPrefix, customSuffix, withHash);
     }
 }
