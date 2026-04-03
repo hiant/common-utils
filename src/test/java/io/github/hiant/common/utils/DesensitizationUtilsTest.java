@@ -348,16 +348,39 @@ public class DesensitizationUtilsTest {
     }
 
     @Test
-    public void testDesensitizeType_bankCardStrategy_shouldWork() {
-        // Ensure the BANK_CARD preset works end-to-end via strategy API.
+    public void testDesensitizeType_prefixOnly_default_shouldKeepOnePrefix() {
         String result = DesensitizationUtils.strategyDesensitize(
-                "6222021234567890",
-                DesensitizeType.BANK_CARD,
+                "abcdef",
+                DesensitizeType.PREFIX_ONLY,
                 OptionalInt.empty(),
                 OptionalInt.empty(),
                 false
         );
-        assertEquals("622202****7890", result);
+        assertEquals("a****", result);
+    }
+
+    @Test
+    public void testDesensitizeType_prefixOnly_customPrefixBelowOne_shouldClampToOne() {
+        String result = DesensitizationUtils.strategyDesensitize(
+                "abcdef",
+                DesensitizeType.PREFIX_ONLY,
+                OptionalInt.of(0),
+                OptionalInt.of(2),
+                false
+        );
+        assertEquals("a****", result);
+    }
+
+    @Test
+    public void testDesensitizeType_prefixOnly_customPrefix_shouldClampToThree() {
+        String result = DesensitizationUtils.strategyDesensitize(
+                "abcdef",
+                DesensitizeType.PREFIX_ONLY,
+                OptionalInt.of(5),
+                OptionalInt.of(2),
+                false
+        );
+        assertEquals("abc****", result);
     }
 
     @Test

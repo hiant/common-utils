@@ -25,7 +25,8 @@ public enum DesensitizeAction {
     /**
      * Encrypt the value to a reversible ciphertext for controlled troubleshooting.
      * <p>
-     * This requires a key to be provided via {@link DesensitizeCryptoProvider} or system properties.
+     * This requires a key to be provided via {@link DesensitizeCryptoProvider} or system properties. The concrete
+     * encryption mode is selected via {@link Desensitize#cryptoAlgorithm()}.
      */
     ENCRYPT
 }

@@ -14,6 +14,7 @@ import java.lang.annotation.Target;
  * rendered in a safer form.
  * <p>
  * <b>Masking (default):</b>
+ * 
  * <pre>
  * {@literal @}Desensitize(type = DesensitizeType.MOBILE_PHONE)
  * {@literal @}Desensitize(type = DesensitizeType.ID_CARD)
@@ -21,30 +22,52 @@ import java.lang.annotation.Target;
  * </pre>
  *
  * <b>Masking with custom keep lengths:</b>
+ * 
  * <pre>
  * {@literal @}Desensitize(type = DesensitizeType.DEFAULT, keepPrefix = 2, keepSuffix = 2)
+ * {@literal @}Desensitize(type = DesensitizeType.PREFIX_ONLY, keepPrefix = 3)
  * </pre>
  *
  * <b>Masking with hash for internal correlation:</b>
+ * 
  * <pre>
  * {@literal @}Desensitize(type = DesensitizeType.MOBILE_PHONE, withHash = true)
  * </pre>
  *
- * <b>Reversible encryption (AES-GCM):</b>
+ * <b>Reversible encryption (AES-GCM, default):</b>
+ * 
  * <pre>
  * {@literal @}Desensitize(action = DesensitizeAction.ENCRYPT, keyId = "default")
  * </pre>
  *
- * <h3>Key provisioning</h3>
+ * <b>Reversible encryption (AES-CBC compatibility mode):</b>
+ * 
+ * <pre>
+ * {@literal @}Desensitize(action = DesensitizeAction.ENCRYPT,
+ *     cryptoAlgorithm = DesensitizeCryptoAlgorithm.AES_CBC,
+ *     iv = "1234567890abcdef")
+ * </pre>
+ *
+ * <b>Key provisioning</b>
  * This library is dependency-free and does not assume any DI container.
  * <p>
  * You can provide keys via system properties:
  * <ul>
- *   <li>{@code -Ddesensitize.crypto.defaultKeyId=default}</li>
- *   <li>{@code -Ddesensitize.crypto.key.default=<Base64(AES key bytes)>}</li>
+ * <li>{@code -Ddesensitize.crypto.defaultKeyId=default}</li>
+ * <li>{@code -Ddesensitize.crypto.key.default=<Base64(AES key bytes)>}</li>
  * </ul>
- * Or inject a custom provider at runtime via {@link DesensitizeCryptoProviders#setProvider(DesensitizeCryptoProvider)}
- * (e.g. a Spring adapter that reads keys from a configuration center).
+ * or environment variables:
+ * <ul>
+ * <li>{@code DESENSITIZE_CRYPTO_DEFAULT_KEY_ID=default}</li>
+ * <li>{@code DESENSITIZE_CRYPTO_KEY_DEFAULT=<Base64(AES key bytes)>}</li>
+ * </ul>
+ * or inject a custom provider at runtime via {@link DesensitizeCryptoProviders#setProvider(DesensitizeCryptoProvider)}
+ * / {@link DesensitizeCryptoProviders#setConfig(DesensitizeCryptoConfig)}.
+ * <p>
+ * For direct field-bound encryption/decryption outside reflective rendering, reuse
+ * {@link DesensitizeCryptoUtils#decryptFromToString(String, Class, String)}.
+ * Applications that want fail-fast startup checks can call
+ * {@link ToStringDesensitizeUtils#validateEncryptConfiguration(Class[])} before handling live traffic.
  *
  * @since JDK1.8
  * @see DesensitizeType
@@ -63,20 +86,22 @@ public @interface Desensitize {
      * desensitized via {@link DesensitizeType} and related parameters.
      * <p>
      * When {@link DesensitizeAction#ENCRYPT} is used, masking parameters are ignored and the value is rendered as
-     * reversible ciphertext using AES-GCM.
+     * reversible ciphertext using the selected {@link #cryptoAlgorithm()}.
      *
      * @return action, defaults to {@link DesensitizeAction#MASK}
      */
     DesensitizeAction action() default DesensitizeAction.MASK;
 
     /**
-     * Key id used for encryption when {@link #action()} is {@link DesensitizeAction#ENCRYPT}.
+     * Encryption algorithm used when {@link #action()} is {@link DesensitizeAction#ENCRYPT}.
      * <p>
-     * If blank, the effective key id is provided by {@link DesensitizeCryptoProvider#defaultKeyId()}.
+     * Defaults to {@link DesensitizeCryptoAlgorithm#AES_CBC}. Use
+     * {@link DesensitizeCryptoAlgorithm#AES_CBC} for compatibility with
+     * {@link CipherUtils#encryptWithAES(String, byte[], byte[])}.
      *
-     * @return key id (optional)
+     * @return encryption algorithm
      */
-    String keyId() default "";
+    DesensitizeCryptoAlgorithm cryptoAlgorithm() default DesensitizeCryptoAlgorithm.AES_CBC;
 
     /**
      * Desensitization type with preset prefix/suffix configuration.

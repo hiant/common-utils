@@ -1,10 +1,15 @@
 package io.github.hiant.common.utils;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -41,6 +46,18 @@ public class ToStringDesensitizeUtils {
         }
     }
 
+    private static class RenderContext {
+        private final Set<Object> visiting = java.util.Collections.newSetFromMap(new IdentityHashMap<Object, Boolean>());
+
+        boolean enter(Object value) {
+            return visiting.add(value);
+        }
+
+        void exit(Object value) {
+            visiting.remove(value);
+        }
+    }
+
     /**
      * Generate desensitized toString output for an object.
      * <p>
@@ -59,34 +76,180 @@ public class ToStringDesensitizeUtils {
             return "null";
         }
 
-        Class<?> clazz = obj.getClass();
-        List<FieldMeta> fieldMetas = FIELD_META_CACHE.computeIfAbsent(clazz,
-            ToStringDesensitizeUtils::collectAllFields);
+        return renderValue(obj, null, obj.getClass(), null, new RenderContext());
+    }
 
-        // Use Lombok-compatible format: ClassName(field=value, ...)
-        StringBuilder sb = new StringBuilder(clazz.getSimpleName()).append("(");
-        try {
-            boolean first = true;
+    /**
+     * Validate that all ENCRYPT-annotated fields on the supplied types can resolve valid AES keys.
+     *
+     * @param types
+     *            classes to validate
+     */
+    public static void validateEncryptConfiguration(Class<?>... types) {
+        if (types == null || types.length == 0) {
+            return;
+        }
+        for (Class<?> type : types) {
+            if (type == null) {
+                continue;
+            }
+            List<FieldMeta> fieldMetas = FIELD_META_CACHE.computeIfAbsent(type, ToStringDesensitizeUtils::collectAllFields);
             for (FieldMeta meta : fieldMetas) {
+                if (meta.annotation == null || meta.annotation.action() != DesensitizeAction.ENCRYPT) {
+                    continue;
+                }
+                DesensitizeCryptoUtils.requireKey();
+                if (meta.annotation.cryptoAlgorithm() == DesensitizeCryptoAlgorithm.AES_CBC) {
+                    DesensitizeCryptoUtils.requireAesCbcIv();
+                }
+            }
+        }
+    }
+
+    private static String renderObject(Object obj, RenderContext context) {
+        if (!context.enter(obj)) {
+            return cycleMarker(obj);
+        }
+
+        try {
+            Class<?> clazz = obj.getClass();
+            List<FieldMeta> fieldMetas = FIELD_META_CACHE.computeIfAbsent(clazz,
+                ToStringDesensitizeUtils::collectAllFields);
+
+            StringBuilder sb = new StringBuilder(simpleClassName(clazz)).append("(");
+            try {
+                boolean first = true;
+                for (FieldMeta meta : fieldMetas) {
+                    if (!first) {
+                        sb.append(", ");
+                    }
+                    first = false;
+
+                    String fieldName = meta.field.getName();
+                    Object fieldValue = meta.field.get(obj);
+                    String renderedValue = renderValue(fieldValue, meta.annotation, meta.declaringClass, fieldName, context);
+
+                    sb.append(fieldName).append("=").append(renderedValue);
+                }
+            } catch (IllegalAccessException e) {
+                sb.append("toString_desensitize_error=").append(e.getMessage());
+            }
+            sb.append(")");
+            return sb.toString();
+        } finally {
+            context.exit(obj);
+        }
+    }
+
+    private static String renderValue(Object value,
+                                      Desensitize annotation,
+                                      Class<?> declaringClass,
+                                      String fieldName,
+                                      RenderContext context) {
+        if (value == null) {
+            return "null";
+        }
+
+        if (value instanceof String) {
+            if (annotation != null) {
+                return processDesensitization((String) value, annotation, declaringClass, fieldName);
+            }
+            return (String) value;
+        }
+
+        Class<?> valueClass = value.getClass();
+        if (valueClass.isArray()) {
+            return renderArray(value, annotation, declaringClass, fieldName, context);
+        }
+        if (value instanceof Collection) {
+            return renderCollection((Collection<?>) value, annotation, declaringClass, fieldName, context);
+        }
+        if (value instanceof Map) {
+            return renderMap((Map<?, ?>) value, annotation, declaringClass, fieldName, context);
+        }
+        if (isScalarType(valueClass)) {
+            return String.valueOf(value);
+        }
+        return renderObject(value, context);
+    }
+
+    private static String renderCollection(Collection<?> values,
+                                           Desensitize annotation,
+                                           Class<?> declaringClass,
+                                           String fieldName,
+                                           RenderContext context) {
+        if (!context.enter(values)) {
+            return cycleMarker(values);
+        }
+
+        try {
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (Object value : values) {
                 if (!first) {
                     sb.append(", ");
                 }
                 first = false;
-
-                String fieldName = meta.field.getName();
-                Object fieldValue = meta.field.get(obj);
-
-                if (meta.annotation != null && fieldValue instanceof String) {
-                    fieldValue = processDesensitization((String) fieldValue, meta.annotation, meta.declaringClass, fieldName);
-                }
-
-                sb.append(fieldName).append("=").append(fieldValue);
+                sb.append(renderValue(value, annotation, declaringClass, fieldName, context));
             }
-        } catch (IllegalAccessException e) {
-            sb.append("toString_desensitize_error=").append(e.getMessage());
+            sb.append("]");
+            return sb.toString();
+        } finally {
+            context.exit(values);
         }
-        sb.append(")");
-        return sb.toString();
+    }
+
+    private static String renderArray(Object array,
+                                      Desensitize annotation,
+                                      Class<?> declaringClass,
+                                      String fieldName,
+                                      RenderContext context) {
+        if (!context.enter(array)) {
+            return cycleMarker(array);
+        }
+
+        try {
+            StringBuilder sb = new StringBuilder("[");
+            int length = Array.getLength(array);
+            for (int i = 0; i < length; i++) {
+                if (i > 0) {
+                    sb.append(", ");
+                }
+                sb.append(renderValue(Array.get(array, i), annotation, declaringClass, fieldName, context));
+            }
+            sb.append("]");
+            return sb.toString();
+        } finally {
+            context.exit(array);
+        }
+    }
+
+    private static String renderMap(Map<?, ?> map,
+                                    Desensitize annotation,
+                                    Class<?> declaringClass,
+                                    String fieldName,
+                                    RenderContext context) {
+        if (!context.enter(map)) {
+            return cycleMarker(map);
+        }
+
+        try {
+            StringBuilder sb = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (!first) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(renderValue(entry.getKey(), null, null, null, context));
+                sb.append("=");
+                sb.append(renderValue(entry.getValue(), annotation, declaringClass, fieldName, context));
+            }
+            sb.append("}");
+            return sb.toString();
+        } finally {
+            context.exit(map);
+        }
     }
 
     /**
@@ -123,6 +286,41 @@ public class ToStringDesensitizeUtils {
         return allFields;
     }
 
+    private static boolean isScalarType(Class<?> type) {
+        if (type.isPrimitive()) {
+            return true;
+        }
+        if (Number.class.isAssignableFrom(type) ||
+            Boolean.class == type ||
+            Character.class == type ||
+            CharSequence.class.isAssignableFrom(type) ||
+            Enum.class.isAssignableFrom(type) ||
+            Class.class == type) {
+            return true;
+        }
+        Package typePackage = type.getPackage();
+        if (typePackage == null) {
+            return false;
+        }
+        String packageName = typePackage.getName();
+        return packageName.startsWith("java.") ||
+               packageName.startsWith("javax.") ||
+               packageName.startsWith("sun.") ||
+               packageName.startsWith("com.sun.");
+    }
+
+    private static String cycleMarker(Object value) {
+        return "<cycle:" + simpleClassName(value.getClass()) + ">";
+    }
+
+    private static String simpleClassName(Class<?> type) {
+        if (type.isArray()) {
+            return simpleClassName(type.getComponentType()) + "[]";
+        }
+        String simpleName = type.getSimpleName();
+        return simpleName.isEmpty() ? type.getName() : simpleName;
+    }
+
     private static String processDesensitization(String rawValue,
                                                  Desensitize annotation,
                                                  Class<?> declaringClass,
@@ -138,9 +336,12 @@ public class ToStringDesensitizeUtils {
 
         switch (action) {
             case ENCRYPT:
-                // Bind ciphertext to a specific field name (optional but recommended)
-                byte[] aad = DesensitizeCryptoUtils.toStringAad(declaringClass, fieldName);
-                return DesensitizeCryptoUtils.encryptForToString(rawValue, annotation.keyId(), aad);
+                if (annotation.cryptoAlgorithm() == DesensitizeCryptoAlgorithm.AES_CBC) {
+                    byte[] key = DesensitizeCryptoProviders.getProvider().key();
+                    byte[] iv = DesensitizeCryptoProviders.getProvider().iv();
+                    return DesensitizeCryptoUtils.encryptForToString(rawValue, key, iv);
+                }
+                return DesensitizeCryptoUtils.encryptForToString(rawValue);
             case MASK_WITH_HASH:
                 return mask(rawValue, annotation, true);
             case MASK:

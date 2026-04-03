@@ -965,8 +965,8 @@ public final class DesensitizationUtils {
         // Determine final prefix/suffix: custom overrides preset
         OptionalInt finalPrefix = customPrefix.isPresent() ? customPrefix : type.getDefaultPrefix();
         OptionalInt finalSuffix = customSuffix.isPresent() ? customSuffix : type.getDefaultSuffix();
-        int prefix = finalPrefix.orElse(0);
-        int suffix = finalSuffix.orElse(0);
+        int prefix = type.resolvePrefix(finalPrefix);
+        int suffix = type.resolveSuffix(finalSuffix);
 
         // Type-level dynamic mask-ratio policy: only validate when system property is configured.
         type.getConfiguredMaskRatio().ifPresent(ratio -> validateMaskRatio(safeValue, prefix, suffix, ratio));

@@ -14,19 +14,13 @@ package io.github.hiant.common.utils;
 public interface DesensitizeCryptoProvider {
 
     /**
-     * Returns the default key id used when an annotation does not specify a key id.
-     *
-     * @return default key id (non-null)
-     */
-    String defaultKeyId();
-
-    /**
-     * Find the raw AES key bytes by key id.
+     * Return the raw AES key bytes.
      * <p>
      * Supported sizes: 16/24/32 bytes (AES-128/192/256).
      *
-     * @param keyId key id
      * @return key bytes, or null when not found
      */
-    byte[] findAesKey(String keyId);
+    byte[] key();
+
+    byte[] iv();
 }

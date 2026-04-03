@@ -74,6 +74,17 @@ public enum DesensitizeType {
     }, OptionalInt.of(1), OptionalInt.of(0)),
 
     /**
+     * Prefix-only generic type: retains only the first 1 to 3 characters, suffix fixed to 0.
+     * <p>
+     * Default behavior keeps 1 prefix character. When custom prefix is provided, it is clamped into [1, 3].
+     * Example: "abcdef" becomes "a****", or with custom prefix=3 becomes "abc****"
+     */
+    PREFIX_ONLY((raw, prefix, suffix) -> {
+        int p = clampPrefixOnly(prefix.orElse(1));
+        return DesensitizationUtils.desensitizeForPreset(raw, p, 0);
+    }, OptionalInt.of(1), OptionalInt.of(0), "GENERIC_PREFIX", "PREFIX"),
+
+    /**
      * Email address: special strategy, ignores prefix/suffix settings.
      * <p>
      * Masks local part while preserving domain.
@@ -130,6 +141,21 @@ public enum DesensitizeType {
         } catch (NumberFormatException ignored) {
             return OptionalDouble.empty();
         }
+    }
+
+    int resolvePrefix(OptionalInt customPrefix) {
+        int prefix = customPrefix.isPresent() ? customPrefix.getAsInt() : defaultPrefix.orElse(0);
+        if (this == PREFIX_ONLY) {
+            return clampPrefixOnly(prefix);
+        }
+        return prefix;
+    }
+
+    int resolveSuffix(OptionalInt customSuffix) {
+        if (this == PREFIX_ONLY) {
+            return 0;
+        }
+        return customSuffix.isPresent() ? customSuffix.getAsInt() : defaultSuffix.orElse(0);
     }
 
     public static DesensitizeType fromName(String nameOrAlias) {
@@ -205,5 +231,12 @@ public enum DesensitizeType {
             return 1.0;
         }
         return ratio;
+    }
+
+    private static int clampPrefixOnly(int prefix) {
+        if (prefix < 1) {
+            return 1;
+        }
+        return Math.min(prefix, 3);
     }
 }
