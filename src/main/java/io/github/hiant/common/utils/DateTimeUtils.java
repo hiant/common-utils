@@ -38,7 +38,7 @@ public class DateTimeUtils {
     }
 
     public static boolean isBeforeToday(String dateStr, String pattern) {
-        return isBeforeToday(dateStr, pattern) || isDateTimeBeforeNow(dateStr, pattern);
+        return isDateBeforeToday(dateStr, pattern) || isDateTimeBeforeNow(dateStr, pattern);
     }
 
     public static boolean isAfterToday(String dateStr, String pattern) {
