@@ -9,7 +9,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Unit tests for annotation-based desensitization utilities.
@@ -76,26 +78,6 @@ public class ToStringDesensitizeUtilsTest {
         private String secret;
 
         public EncryptedInfoWithCustomKey(String secret) {
-            this.secret = secret;
-        }
-    }
-
-    static class EncryptedInfoWithAesCbc {
-        @Desensitize(action = DesensitizeAction.ENCRYPT,
-                     cryptoAlgorithm = DesensitizeCryptoAlgorithm.AES_CBC)
-        private String secret;
-
-        public EncryptedInfoWithAesCbc(String secret) {
-            this.secret = secret;
-        }
-    }
-
-    static class EncryptedInfoWithBlankAesCbcIv {
-        @Desensitize(action = DesensitizeAction.ENCRYPT,
-                     cryptoAlgorithm = DesensitizeCryptoAlgorithm.AES_CBC)
-        private String secret;
-
-        public EncryptedInfoWithBlankAesCbcIv(String secret) {
             this.secret = secret;
         }
     }
@@ -243,48 +225,6 @@ public class ToStringDesensitizeUtilsTest {
     }
 
     @Test
-    public void testToDesensitizeString_encryptAction_aesGcm_rendersCiphertextOnly() {
-        DesensitizeCryptoProviders.setProvider(fixedProvider(DEFAULT_AES_KEY, DEFAULT_AES_IV));
-
-        try {
-            EncryptedInfo info = new EncryptedInfo("top-secret");
-            String result = ToStringDesensitizeUtils.toDesensitizeString(info);
-
-            int start = result.indexOf("secret=") + "secret=".length();
-            int end = result.lastIndexOf(")");
-            String enc = result.substring(start, end);
-
-            assertNotNull(enc);
-            assertFalse("AES-GCM output should not include ENC header", enc.startsWith("ENC["));
-            assertFalse("AES-GCM output should not include header delimiter", enc.contains("]::"));
-            assertFalse("AES-GCM output should not equal raw value", "top-secret".equals(enc));
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
-    }
-
-    @Test
-    public void testToDesensitizeString_encryptAction_aesCbc_rendersCiphertextOnly() {
-        DesensitizeCryptoProviders.setConfig(DesensitizeCryptoConfig.of("0123456789abcdef", "121"));
-
-        try {
-            EncryptedInfoWithAesCbc info = new EncryptedInfoWithAesCbc("top-secret");
-            String result = ToStringDesensitizeUtils.toDesensitizeString(info);
-
-            int start = result.indexOf("secret=") + "secret=".length();
-            int end = result.lastIndexOf(")");
-            String enc = result.substring(start, end);
-
-            assertNotNull(enc);
-            assertFalse("AES-CBC output should not include ENC header", enc.startsWith("ENC["));
-            assertFalse("AES-CBC output should not include header delimiter", enc.contains("]::"));
-            assertFalse("AES-CBC output should not equal raw value", "top-secret".equals(enc));
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
-    }
-
-    @Test
     public void testToDesensitizeString_nestedPojo_recursesAndDesensitizesNestedFields() {
         Team team = new Team(
             new UserInfo("owner", "13812345678", null, null, null, null),
@@ -335,33 +275,6 @@ public class ToStringDesensitizeUtilsTest {
     }
 
     @Test
-    public void testToDesensitizeString_encryptActionOnList_encryptsEachElement() {
-        DesensitizeCryptoProviders.setProvider(fixedProvider(DEFAULT_AES_KEY, DEFAULT_AES_IV));
-
-        try {
-            Vault vault = new Vault(Arrays.asList("alpha", "beta"));
-            String result = ToStringDesensitizeUtils.toDesensitizeString(vault);
-
-            // should be ciphertext-only for each element
-            assertTrue(result.contains("secrets=["));
-            assertFalse(result.contains("ENC["));
-
-            int start = result.indexOf("secrets=[") + "secrets=[".length();
-            int end = result.indexOf("]", start);
-            String inside = result.substring(start, end);
-            String[] parts = inside.split(", ");
-            assertEquals(2, parts.length);
-
-            assertNotEquals("alpha", parts[0]);
-            assertNotEquals("beta", parts[1]);
-            assertFalse(parts[0].contains("]::"));
-            assertFalse(parts[1].contains("]::"));
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
-    }
-
-    @Test
     public void testToDesensitizeString_selfReference_rendersCycleMarker() {
         Node node = new Node("root");
         node.next = node;
@@ -382,53 +295,6 @@ public class ToStringDesensitizeUtilsTest {
 
         assertTrue(result.contains("children=[<cycle:Node>]"));
         assertTrue(result.contains("links={self=<cycle:Node>}"));
-    }
-
-    @Test
-    public void testValidateEncryptConfiguration_acceptsResolvableFields() {
-        DesensitizeCryptoProviders
-            .setConfig(DesensitizeCryptoConfig.of("fedcba9876543210".getBytes(StandardCharsets.UTF_8), "    ".getBytes(StandardCharsets.UTF_8)));
-
-        try {
-            ToStringDesensitizeUtils.validateEncryptConfiguration(
-                EncryptedInfo.class,
-                EncryptedInfoWithCustomKey.class,
-                EncryptedInfoWithAesCbc.class);
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void testValidateEncryptConfiguration_illegalKeyLength_throwsException() {
-        DesensitizeCryptoProviders.setProvider(new DesensitizeCryptoProvider() {
-            @Override
-            public byte[] key() {
-                return "short".getBytes(StandardCharsets.UTF_8);
-            }
-
-            @Override
-            public byte[] iv() {
-                return "1".getBytes(StandardCharsets.UTF_8);
-            }
-        });
-
-        try {
-            ToStringDesensitizeUtils.validateEncryptConfiguration(EncryptedInfo.class);
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testValidateEncryptConfiguration_aesCbcBlankIv_throwsException() {
-        DesensitizeCryptoProviders.setConfig(DesensitizeCryptoConfig.of("0123456789abcdef"));
-
-        try {
-            ToStringDesensitizeUtils.validateEncryptConfiguration(EncryptedInfoWithBlankAesCbcIv.class);
-        } finally {
-            DesensitizeCryptoProviders.setProvider(null);
-        }
     }
 
     @Test
@@ -611,18 +477,4 @@ public class ToStringDesensitizeUtilsTest {
         assertFalse("Should not use curly braces", result.contains("{"));
     }
 
-    private static DesensitizeCryptoProvider fixedProvider(final byte[] key, final byte[] iv) {
-        return new DesensitizeCryptoProvider() {
-
-            @Override
-            public byte[] key() {
-                return key;
-            }
-
-            @Override
-            public byte[] iv() {
-                return iv;
-            }
-        };
-    }
 }

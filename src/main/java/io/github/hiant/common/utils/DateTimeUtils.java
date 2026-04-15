@@ -10,14 +10,15 @@ import java.util.Locale;
 
 public class DateTimeUtils {
 
-    private DateTimeUtils() {
-    }
+    private DateTimeUtils() {}
 
     /**
      * Check if the given date-time string matches the specified pattern strictly.
      *
-     * @param dateTime the date-time string to check
-     * @param pattern  the date-time pattern (e.g., "yyyy-MM-dd")
+     * @param dateTime
+     *            the date-time string to check
+     * @param pattern
+     *            the date-time pattern (e.g., "yyyy-MM-dd")
      * @return true if the date-time string matches the pattern exactly, false otherwise
      */
     public static boolean isPatternMatch(String dateTime, String pattern) {
@@ -27,8 +28,8 @@ public class DateTimeUtils {
 
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT)
-                    .withLocale(Locale.ROOT);
+                .withResolverStyle(ResolverStyle.STRICT)
+                .withLocale(Locale.ROOT);
 
             return dateTime.equals(formatter.format(formatter.parse(dateTime)));
         } catch (Exception e) {
@@ -36,11 +37,21 @@ public class DateTimeUtils {
         }
     }
 
+    public static boolean isBeforeToday(String dateStr, String pattern) {
+        return isBeforeToday(dateStr, pattern) || isDateTimeBeforeNow(dateStr, pattern);
+    }
+
+    public static boolean isAfterToday(String dateStr, String pattern) {
+        return isDateAfterToday(dateStr, pattern) || isDateTimeAfterNow(dateStr, pattern);
+    }
+
     /**
      * Check if the given date string represents a date before today.
      *
-     * @param dateStr the date string to check
-     * @param pattern the date pattern (e.g., "yyyy-MM-dd")
+     * @param dateStr
+     *            the date string to check
+     * @param pattern
+     *            the date pattern (e.g., "yyyy-MM-dd")
      * @return true if the date is before today, false otherwise (including invalid dates)
      */
     public static boolean isDateBeforeToday(String dateStr, String pattern) {
@@ -51,8 +62,10 @@ public class DateTimeUtils {
     /**
      * Check if the given date string represents a date after today.
      *
-     * @param date    the date string to check
-     * @param pattern the date pattern (e.g., "yyyy-MM-dd")
+     * @param date
+     *            the date string to check
+     * @param pattern
+     *            the date pattern (e.g., "yyyy-MM-dd")
      * @return true if the date is after today, false otherwise (including invalid dates)
      */
     public static boolean isDateAfterToday(String date, String pattern) {
@@ -63,8 +76,10 @@ public class DateTimeUtils {
     /**
      * Check if the given date-time string represents a time before now.
      *
-     * @param dateTime the date-time string to check
-     * @param pattern  the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
+     * @param dateTime
+     *            the date-time string to check
+     * @param pattern
+     *            the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
      * @return true if the date-time is before now, false otherwise (including invalid dates)
      */
     public static boolean isDateTimeBeforeNow(String dateTime, String pattern) {
@@ -75,8 +90,10 @@ public class DateTimeUtils {
     /**
      * Check if the given date-time string represents a time after now.
      *
-     * @param dateTimeStr the date-time string to check
-     * @param pattern     the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
+     * @param dateTimeStr
+     *            the date-time string to check
+     * @param pattern
+     *            the date-time pattern (e.g., "yyyy-MM-dd HH:mm:ss")
      * @return true if the date-time is after now, false otherwise (including invalid dates)
      */
     public static boolean isDateTimeAfterNow(String dateTimeStr, String pattern) {
@@ -87,11 +104,14 @@ public class DateTimeUtils {
     /**
      * Check if the current time is between the specified start and end times (time part only, excluding date).
      *
-     * @param startTime the start time string in ISO_LOCAL_TIME format ("HH:mm:ss")
-     * @param endTime   the end time string in ISO_LOCAL_TIME format ("HH:mm:ss")
+     * @param startTime
+     *            the start time string in ISO_LOCAL_TIME format ("HH:mm:ss")
+     * @param endTime
+     *            the end time string in ISO_LOCAL_TIME format ("HH:mm:ss")
      * @return true if the current time is between startTime and endTime (inclusive if times are equal),
-     * false otherwise
-     * @throws IllegalArgumentException if startTime or endTime is invalid
+     *         false otherwise
+     * @throws IllegalArgumentException
+     *             if startTime or endTime is invalid
      */
     public static boolean isNowTimeBetween(String startTime, String endTime) {
         if (startTime == null || endTime == null) {
@@ -116,8 +136,10 @@ public class DateTimeUtils {
     /**
      * Parses a date string using the given pattern.
      *
-     * @param date    the date string to parse
-     * @param pattern the date pattern
+     * @param date
+     *            the date string to parse
+     * @param pattern
+     *            the date pattern
      * @return the parsed LocalDate, or null if parsing fails
      */
     private static LocalDate parseDate(String date, String pattern) {
@@ -126,7 +148,7 @@ public class DateTimeUtils {
         }
         try {
             return LocalDate.parse(date, DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT));
+                .withResolverStyle(ResolverStyle.STRICT));
         } catch (DateTimeParseException e) {
             return null;
         }
@@ -135,8 +157,10 @@ public class DateTimeUtils {
     /**
      * Parses a date-time string using the given pattern.
      *
-     * @param dateTime the date-time string to parse
-     * @param pattern  the date-time pattern
+     * @param dateTime
+     *            the date-time string to parse
+     * @param pattern
+     *            the date-time pattern
      * @return the parsed LocalDateTime, or null if parsing fails
      */
     private static LocalDateTime parseDateTime(String dateTime, String pattern) {
@@ -145,7 +169,7 @@ public class DateTimeUtils {
         }
         try {
             return LocalDateTime.parse(dateTime, DateTimeFormatter.ofPattern(pattern)
-                    .withResolverStyle(ResolverStyle.STRICT));
+                .withResolverStyle(ResolverStyle.STRICT));
         } catch (DateTimeParseException e) {
             return null;
         }

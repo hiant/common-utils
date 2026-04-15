@@ -79,33 +79,6 @@ public class ToStringDesensitizeUtils {
         return renderValue(obj, null, obj.getClass(), null, new RenderContext());
     }
 
-    /**
-     * Validate that all ENCRYPT-annotated fields on the supplied types can resolve valid AES keys.
-     *
-     * @param types
-     *            classes to validate
-     */
-    public static void validateEncryptConfiguration(Class<?>... types) {
-        if (types == null || types.length == 0) {
-            return;
-        }
-        for (Class<?> type : types) {
-            if (type == null) {
-                continue;
-            }
-            List<FieldMeta> fieldMetas = FIELD_META_CACHE.computeIfAbsent(type, ToStringDesensitizeUtils::collectAllFields);
-            for (FieldMeta meta : fieldMetas) {
-                if (meta.annotation == null || meta.annotation.action() != DesensitizeAction.ENCRYPT) {
-                    continue;
-                }
-                DesensitizeCryptoUtils.requireKey();
-                if (meta.annotation.cryptoAlgorithm() == DesensitizeCryptoAlgorithm.AES_CBC) {
-                    DesensitizeCryptoUtils.requireAesCbcIv();
-                }
-            }
-        }
-    }
-
     private static String renderObject(Object obj, RenderContext context) {
         if (!context.enter(obj)) {
             return cycleMarker(obj);
@@ -335,13 +308,6 @@ public class ToStringDesensitizeUtils {
         }
 
         switch (action) {
-            case ENCRYPT:
-                if (annotation.cryptoAlgorithm() == DesensitizeCryptoAlgorithm.AES_CBC) {
-                    byte[] key = DesensitizeCryptoProviders.getProvider().key();
-                    byte[] iv = DesensitizeCryptoProviders.getProvider().iv();
-                    return DesensitizeCryptoUtils.encryptForToString(rawValue, key, iv);
-                }
-                return DesensitizeCryptoUtils.encryptForToString(rawValue);
             case MASK_WITH_HASH:
                 return mask(rawValue, annotation, true);
             case MASK:

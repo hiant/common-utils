@@ -61,13 +61,6 @@ import java.lang.annotation.Target;
  * <li>{@code DESENSITIZE_CRYPTO_DEFAULT_KEY_ID=default}</li>
  * <li>{@code DESENSITIZE_CRYPTO_KEY_DEFAULT=<Base64(AES key bytes)>}</li>
  * </ul>
- * or inject a custom provider at runtime via {@link DesensitizeCryptoProviders#setProvider(DesensitizeCryptoProvider)}
- * / {@link DesensitizeCryptoProviders#setConfig(DesensitizeCryptoConfig)}.
- * <p>
- * For direct field-bound encryption/decryption outside reflective rendering, reuse
- * {@link DesensitizeCryptoUtils#decryptFromToString(String, Class, String)}.
- * Applications that want fail-fast startup checks can call
- * {@link ToStringDesensitizeUtils#validateEncryptConfiguration(Class[])} before handling live traffic.
  *
  * @since JDK1.8
  * @see DesensitizeType
@@ -91,17 +84,6 @@ public @interface Desensitize {
      * @return action, defaults to {@link DesensitizeAction#MASK}
      */
     DesensitizeAction action() default DesensitizeAction.MASK;
-
-    /**
-     * Encryption algorithm used when {@link #action()} is {@link DesensitizeAction#ENCRYPT}.
-     * <p>
-     * Defaults to {@link DesensitizeCryptoAlgorithm#AES_CBC}. Use
-     * {@link DesensitizeCryptoAlgorithm#AES_CBC} for compatibility with
-     * {@link CipherUtils#encryptWithAES(String, byte[], byte[])}.
-     *
-     * @return encryption algorithm
-     */
-    DesensitizeCryptoAlgorithm cryptoAlgorithm() default DesensitizeCryptoAlgorithm.AES_CBC;
 
     /**
      * Desensitization type with preset prefix/suffix configuration.
