@@ -22,10 +22,12 @@ import java.util.zip.CRC32;
 public final class DesensitizationUtils {
 
     /**
-     * Precompiled pattern for mainland China phone number validation (11 digits, starts with 1).
+     * Precompiled pattern for international phone number validation.
+     * Supports domestic and overseas numbers with an optional '+' country code prefix,
+     * and allows 7 to 15 digits in total in accordance with common E.164 length constraints.
      * Reused globally to avoid repeated compilation and reduce CPU overhead.
      */
-    private static final Pattern PHONE_PATTERN     = Pattern.compile("^1[3-9]\\d{9}$");
+    private static final Pattern PHONE_PATTERN     = Pattern.compile("^(?:\\+?[1-9]\\d{6,14}|1[3-9]\\d{9})$");
 
     /**
      * Precompiled pattern for bank card number validation (16 to 19 digits).
@@ -269,20 +271,21 @@ public final class DesensitizationUtils {
     // ================================================================================
 
     /**
-     * Desensitize mainland China phone number (11 digits).
+     * Desensitize an international phone number.
      * <p>
+     * Supports domestic and overseas numbers, including numbers with an optional '+' country code prefix.
      * Retains 3 prefix digits and 4 suffix digits with default placeholder.
      * Uses precompiled regex for validation to optimize performance.
      *
      * @param phone
-     *            Input mainland China phone number (11 digits, starts with 1)
-     * @return Desensitized phone number (format: 138****5678)
+     *            Input phone number (supports optional '+' country code prefix and 7 to 15 digits)
+     * @return Desensitized phone number (format: 138****5678, +86****5678)
      * @throws IllegalArgumentException
      *             If phone number is null or does not match the pattern
      */
     public static String phone(String phone) {
         if (phone == null || !PHONE_PATTERN.matcher(phone).matches()) {
-            throw new IllegalArgumentException("Invalid phone number format: must be 11 digits starting with 1");
+            throw new IllegalArgumentException("Invalid phone number format: must be 7 to 15 digits with an optional '+' country code prefix");
         }
 
         DesensitizeConfig config = DesensitizeConfig.defaults();
@@ -290,12 +293,12 @@ public final class DesensitizationUtils {
     }
 
     /**
-     * Desensitize mainland China phone number with default MD5 hash.
+     * Desensitize an international phone number with default MD5 hash.
      * <p>
      * Retains 3 prefix digits and 4 suffix digits, appends MD5 hash for internal tracing.
      *
      * @param phone
-     *            Input mainland China phone number (11 digits, starts with 1)
+     *            Input phone number (supports optional '+' country code prefix and 7 to 15 digits)
      * @return Desensitized phone number with MD5 hash (format: 138****5678(3e25960a...))
      * @throws IllegalArgumentException
      *             If phone number is null or does not match the pattern
@@ -305,13 +308,13 @@ public final class DesensitizationUtils {
     }
 
     /**
-     * Desensitize a mainland China mobile phone number with the specified hash algorithm.
+     * Desensitize an international phone number with the specified hash algorithm.
      * <p>
      * Retains 3 prefix digits and 4 suffix digits, appends the specified cryptographic hash for internal tracing.
      * CRC32/CRC16 are prohibited for phone numbers to avoid security risks and low collision resistance.
      *
      * @param phone
-     *            Input mainland China mobile phone number (11 digits, starts with 1)
+     *            Input phone number (supports optional '+' country code prefix and 7 to 15 digits)
      * @param hashAlgorithm
      *            Hash algorithm (MD5/SHA-256). If null, defaults to MD5.
      * @return Desensitized phone number with hash (format: 138****5678(xxx...))

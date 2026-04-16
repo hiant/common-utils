@@ -31,9 +31,21 @@ public class DesensitizationUtilsTest {
     // ================================================================================
 
     @Test
-    public void testPhone_validPhone_shouldMaskMiddleDigits() {
+    public void testPhone_validChinaPhone_shouldMaskMiddleDigits() {
         String result = DesensitizationUtils.phone("13812345678");
         assertEquals("138****5678", result);
+    }
+
+    @Test
+    public void testPhone_internationalPhoneWithPlus_shouldMaskMiddleDigits() {
+        String result = DesensitizationUtils.phone("+447911123456");
+        assertEquals("+44****3456", result);
+    }
+
+    @Test
+    public void testPhone_internationalPhoneWithoutPlus_shouldMaskMiddleDigits() {
+        String result = DesensitizationUtils.phone("447911123456");
+        assertEquals("447****3456", result);
     }
 
     @Test
@@ -61,8 +73,8 @@ public class DesensitizationUtilsTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testPhone_invalidPrefix_shouldThrowException() {
-        DesensitizationUtils.phone("22812345678"); // Not starting with 1
+    public void testPhone_invalidCountryCodePrefix_shouldThrowException() {
+        DesensitizationUtils.phone("+02812345678"); // Country code cannot start with 0
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -80,6 +92,16 @@ public class DesensitizationUtilsTest {
         assertTrue(result.startsWith("138****5678("));
         assertTrue(result.endsWith(")"));
         // MD5 produces 32 hex characters
+        String hash = result.substring(result.indexOf('(') + 1, result.indexOf(')'));
+        assertEquals(32, hash.length());
+        assertTrue(hash.matches("[0-9a-f]+"));
+    }
+
+    @Test
+    public void testPhoneWithHash_internationalPhone_shouldAppendHash() {
+        String result = DesensitizationUtils.phoneWithHash("+447911123456");
+        assertTrue(result.startsWith("+44****3456("));
+        assertTrue(result.endsWith(")"));
         String hash = result.substring(result.indexOf('(') + 1, result.indexOf(')'));
         assertEquals(32, hash.length());
         assertTrue(hash.matches("[0-9a-f]+"));
