@@ -33,6 +33,29 @@ public class ToStringDesensitizeUtils {
 
     private static final ConcurrentMap<Class<?>, List<FieldMeta>> FIELD_META_CACHE = new ConcurrentHashMap<>();
 
+    private static volatile DesensitizeEncryptor encryptor;
+
+    /**
+     * Register a pluggable encryptor for {@link DesensitizeAction#ENCRYPT} fields.
+     * <p>
+     * Typically called once at application startup. Pass {@code null} to unregister.
+     *
+     * @param encryptor
+     *            the encryptor to use, or {@code null} to clear
+     */
+    public static void setEncryptor(DesensitizeEncryptor encryptor) {
+        ToStringDesensitizeUtils.encryptor = encryptor;
+    }
+
+    /**
+     * Get the currently registered encryptor.
+     *
+     * @return the registered encryptor, or {@code null} if none is registered
+     */
+    public static DesensitizeEncryptor getEncryptor() {
+        return encryptor;
+    }
+
     private static class FieldMeta {
         final Field       field;
         final Desensitize annotation;
@@ -310,6 +333,12 @@ public class ToStringDesensitizeUtils {
         switch (action) {
             case MASK_WITH_HASH:
                 return mask(rawValue, annotation, true);
+            case ENCRYPT:
+                DesensitizeEncryptor enc = encryptor;
+                if (enc != null) {
+                    return enc.encrypt(rawValue);
+                }
+                return mask(rawValue, annotation, false);
             case MASK:
             default:
                 return mask(rawValue, annotation, annotation.withHash());

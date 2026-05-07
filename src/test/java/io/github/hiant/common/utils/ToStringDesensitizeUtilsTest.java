@@ -1,8 +1,8 @@
 package io.github.hiant.common.utils;
 
+import org.junit.After;
 import org.junit.Test;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -20,9 +20,6 @@ import static org.junit.Assert.assertTrue;
  * and {@link ToStringDesensitizeUtils} functionality.
  */
 public class ToStringDesensitizeUtilsTest {
-
-    private static final byte[] DEFAULT_AES_KEY = "0123456789abcdef".getBytes(StandardCharsets.UTF_8);
-    private static final byte[] DEFAULT_AES_IV  = "abcdef0123456789".getBytes(StandardCharsets.UTF_8);
 
     /**
      * Sample user entity with various desensitization annotations.
@@ -52,33 +49,6 @@ public class ToStringDesensitizeUtilsTest {
             this.email = email;
             this.address = address;
             this.realName = realName;
-        }
-    }
-
-    static class SecureInfo {
-        @Desensitize(type = DesensitizeType.MOBILE_PHONE, withHash = true)
-        private String phone;
-
-        public SecureInfo(String phone) {
-            this.phone = phone;
-        }
-    }
-
-    static class EncryptedInfo {
-        @Desensitize(action = DesensitizeAction.ENCRYPT)
-        private String secret;
-
-        public EncryptedInfo(String secret) {
-            this.secret = secret;
-        }
-    }
-
-    static class EncryptedInfoWithCustomKey {
-        @Desensitize(action = DesensitizeAction.ENCRYPT)
-        private String secret;
-
-        public EncryptedInfoWithCustomKey(String secret) {
-            this.secret = secret;
         }
     }
 
@@ -129,15 +99,6 @@ public class ToStringDesensitizeUtilsTest {
         public Team(UserInfo owner, List<UserInfo> members) {
             this.owner = owner;
             this.members = members;
-        }
-    }
-
-    static class Vault {
-        @Desensitize(action = DesensitizeAction.ENCRYPT)
-        private List<String> secrets;
-
-        public Vault(List<String> secrets) {
-            this.secrets = secrets;
         }
     }
 
@@ -288,7 +249,7 @@ public class ToStringDesensitizeUtilsTest {
     public void testToDesensitizeString_cycleThroughCollectionAndMap_rendersCycleMarker() {
         Node root = new Node("root");
         root.children = Collections.singletonList(root);
-        root.links = new LinkedHashMap<String, Node>();
+        root.links = new LinkedHashMap<>();
         root.links.put("self", root);
 
         String result = ToStringDesensitizeUtils.toDesensitizeString(root);
@@ -477,4 +438,131 @@ public class ToStringDesensitizeUtilsTest {
         assertFalse("Should not use curly braces", result.contains("{"));
     }
 
+    // ========================================================================
+    // ENCRYPT action / DesensitizeEncryptor tests
+    // ========================================================================
+
+    @After
+    public void clearEncryptor() {
+        ToStringDesensitizeUtils.setEncryptor(null);
+    }
+
+    static class EncryptedUser {
+        private String name;
+
+        @Desensitize(action = DesensitizeAction.ENCRYPT)
+        private String phone;
+
+        @Desensitize(action = DesensitizeAction.ENCRYPT, type = DesensitizeType.ID_CARD)
+        private String idCard;
+
+        public EncryptedUser(String name, String phone, String idCard) {
+            this.name = name;
+            this.phone = phone;
+            this.idCard = idCard;
+        }
+    }
+
+    static class EncryptedCollectionHolder {
+        @Desensitize(action = DesensitizeAction.ENCRYPT)
+        private String[] secrets;
+
+        @Desensitize(action = DesensitizeAction.ENCRYPT)
+        private List<String> tokens;
+
+        public EncryptedCollectionHolder(String[] secrets, List<String> tokens) {
+            this.secrets = secrets;
+            this.tokens = tokens;
+        }
+    }
+
+    @Test
+    public void testEncrypt_withEncryptor_encrypted() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "ENC(" + rawValue + ")");
+
+        EncryptedUser user = new EncryptedUser("test", "13812345678", "110101199001011234");
+        String result = ToStringDesensitizeUtils.toDesensitizeString(user);
+
+        assertTrue(result.contains("name=test"));
+        assertTrue(result.contains("phone=ENC(13812345678)"));
+        assertTrue(result.contains("idCard=ENC(110101199001011234)"));
+    }
+
+    @Test
+    public void testEncrypt_withoutEncryptor_fallsBackToMask() {
+        // No encryptor registered — should fall back to masking
+        EncryptedUser user = new EncryptedUser("test", "13812345678", "110101199001011234");
+        String result = ToStringDesensitizeUtils.toDesensitizeString(user);
+
+        assertTrue("Should fall back to default mask", result.contains("phone=****"));
+        assertTrue("Should fall back to default mask", result.contains("idCard=110101****1234"));
+        assertFalse("Should not contain plaintext", result.contains("13812345678"));
+        assertFalse("Should not contain plaintext", result.contains("110101199001011234"));
+    }
+
+    @Test
+    public void testEncrypt_withEncryptor_handlesNullField() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "ENC(" + rawValue + ")");
+
+        EncryptedUser user = new EncryptedUser("test", null, null);
+        String result = ToStringDesensitizeUtils.toDesensitizeString(user);
+
+        assertTrue(result.contains("phone=null"));
+        assertTrue(result.contains("idCard=null"));
+    }
+
+    @Test
+    public void testEncrypt_withEncryptor_handlesEmptyField() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "ENC(" + rawValue + ")");
+
+        EncryptedUser user = new EncryptedUser("test", "", "");
+        String result = ToStringDesensitizeUtils.toDesensitizeString(user);
+
+        // Empty string should pass through without calling encryptor
+        assertTrue(result.contains("phone="));
+        assertTrue(result.contains("idCard="));
+    }
+
+    @Test
+    public void testEncrypt_arrayAndList_encrypted() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "ENC(" + rawValue + ")");
+
+        EncryptedCollectionHolder holder = new EncryptedCollectionHolder(
+            new String[]{"aaa", "bbb"},
+            Arrays.asList("ccc", "ddd"));
+        String result = ToStringDesensitizeUtils.toDesensitizeString(holder);
+
+        assertTrue(result.contains("secrets=[ENC(aaa), ENC(bbb)]"));
+        assertTrue(result.contains("tokens=[ENC(ccc), ENC(ddd)]"));
+    }
+
+    @Test
+    public void testSetEncryptor_nullClearsReference() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "ENC");
+        assertTrue(ToStringDesensitizeUtils.getEncryptor() != null);
+
+        ToStringDesensitizeUtils.setEncryptor(null);
+        assertTrue(ToStringDesensitizeUtils.getEncryptor() == null);
+    }
+
+    @Test
+    public void testGetEncryptor_defaultIsNull() {
+        // After @After cleanup, encryptor should be null
+        assertTrue(ToStringDesensitizeUtils.getEncryptor() == null);
+    }
+
+    @Test
+    public void testEncrypt_encryptorReplaced_atRuntime() {
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "V1(" + rawValue + ")");
+
+        EncryptedUser user = new EncryptedUser("test", "123", null);
+        String result1 = ToStringDesensitizeUtils.toDesensitizeString(user);
+        assertTrue(result1.contains("phone=V1(123)"));
+
+        // Replace encryptor at runtime
+        ToStringDesensitizeUtils.setEncryptor(rawValue -> "V2(" + rawValue + ")");
+
+        String result2 = ToStringDesensitizeUtils.toDesensitizeString(user);
+        assertTrue(result2.contains("phone=V2(123)"));
+    }
 }

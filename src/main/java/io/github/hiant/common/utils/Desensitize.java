@@ -79,7 +79,7 @@ public @interface Desensitize {
      * desensitized via {@link DesensitizeType} and related parameters.
      * <p>
      * When {@link DesensitizeAction#ENCRYPT} is used, masking parameters are ignored and the value is rendered as
-     * reversible ciphertext using the selected {@link #cryptoAlgorithm()}.
+     * reversible ciphertext using the selected function.
      *
      * @return action, defaults to {@link DesensitizeAction#MASK}
      */

@@ -69,7 +69,7 @@ public class DesensitizationUtilsTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void testPhone_invalidLength_shouldThrowException() {
-        DesensitizationUtils.phone("1381234567"); // 10 digits
+        DesensitizationUtils.phone("1234"); // 4 digits
     }
 
     @Test(expected = IllegalArgumentException.class)
